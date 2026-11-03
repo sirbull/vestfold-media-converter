@@ -1,0 +1,408 @@
+"""Begrenset videoforhåndsvisning med medfølgende FFmpeg, uten systemkodeker."""
+
+import subprocess
+import threading
+import time
+from pathlib import Path
+
+from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QImage, QPainter
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QSlider,
+    QVBoxLayout,
+    QWidget,
+)
+
+from .appearance import PathLabel
+from .models import MediaInfo, QueueItem
+from .process import CREATE_FLAGS, stop_process
+
+PREVIEW_FPS = 12
+
+
+def preview_command(ffmpeg: Path, info: MediaInfo, position: float, playing: bool) -> list[str]:
+    args = [str(ffmpeg), "-hide_banner", "-loglevel", "error", "-nostdin", "-protocol_whitelist", "file,pipe"]
+    # Litt preroll gir også en keyframe ved søking i korte transportstrømmer.
+    seek_start = max(0.0, position - 3)
+    args += ["-ss", f"{seek_start:.3f}", "-i", str(info.path)]
+    if position > seek_start:
+        args += ["-ss", f"{position - seek_start:.3f}"]
+    args += ["-map", f"0:{info.video.index}", "-an", "-sn", "-dn"]
+    filters = []
+    if info.video.field_order in {"tt", "bb", "tb", "bt"}:
+        filters.append("bwdif=mode=send_frame:deint=interlaced")
+    if playing:
+        filters.append(f"fps={PREVIEW_FPS}")
+    filters.append("scale=640:360:force_original_aspect_ratio=decrease:reset_sar=1")
+    args += ["-vf", ",".join(filters), "-c:v", "mjpeg", "-pix_fmt", "yuvj420p", "-q:v", "4", "-threads", "1"]
+    if not playing:
+        args += ["-frames:v", "1"]
+    return args + ["-f", "image2pipe", "pipe:1"]
+
+
+class PreviewDecoder:
+    """Én arbeider, siste forespørsel vinner, og bare siste JPEG beholdes i minnet."""
+
+    def __init__(self, ffmpeg: Path):
+        self.ffmpeg = ffmpeg
+        self._condition = threading.Condition()
+        self._generation = 0
+        self._pending = None
+        self._latest = None
+        self._status = None
+        self._process = None
+        self._cancel = threading.Event()
+        self._stopped = False
+        self._activity = time.monotonic()
+        self.thread = threading.Thread(target=self._run, name="Videoforhåndsvisning", daemon=True)
+        self.thread.start()
+
+    @staticmethod
+    def _terminate(process):
+        if process is not None and process.poll() is None:
+            try:
+                process.terminate()
+            except OSError:
+                pass
+
+    def request(self, info: MediaInfo | None, position=0.0, playing=False) -> int:
+        with self._condition:
+            self._generation += 1
+            self._cancel.set()
+            process = self._process
+            self._latest = self._status = None
+            self._pending = (self._generation, info, position, playing) if info else None
+            self._condition.notify()
+            generation = self._generation
+        self._terminate(process)
+        return generation
+
+    def poll(self):
+        process = None
+        with self._condition:
+            if self._process and not self._cancel.is_set() and time.monotonic() - self._activity > 15:
+                self._cancel.set()
+                process = self._process
+                self._status = (self._generation, "error", "Forhåndsvisningen tok for lang tid.")
+            result = self._latest, self._status
+            self._latest = self._status = None
+        self._terminate(process)
+        return result
+
+    def stop(self):
+        with self._condition:
+            self._stopped = True
+            self._cancel.set()
+            self._pending = None
+            process = self._process
+            self._condition.notify()
+        self._terminate(process)
+
+    def _run(self):
+        while True:
+            with self._condition:
+                self._condition.wait_for(lambda: self._stopped or self._pending is not None)
+                if self._stopped:
+                    return
+                generation, info, position, playing = self._pending
+                self._pending = None
+                cancel = self._cancel = threading.Event()
+                self._activity = time.monotonic()
+            try:
+                self._decode(generation, info, position, playing, cancel)
+            except (OSError, ValueError, subprocess.SubprocessError):
+                with self._condition:
+                    if generation == self._generation and not cancel.is_set():
+                        self._status = (
+                            generation,
+                            "error",
+                            "Kunne ikke vise videoen. Filen kan være skadet.",
+                        )
+
+    def _decode(self, generation, info, position, playing, cancel):
+        with subprocess.Popen(
+            preview_command(self.ffmpeg, info, position, playing),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            creationflags=CREATE_FLAGS,
+        ) as process:
+            with self._condition:
+                self._process = process
+                if generation != self._generation or self._stopped:
+                    cancel.set()
+            buffer = bytearray()
+            frames = 0
+            playback_started = None
+            try:
+                if cancel.is_set():
+                    return
+                while not cancel.is_set():
+                    chunk = process.stdout.read1(64 * 1024)
+                    if not chunk:
+                        break
+                    buffer.extend(chunk)
+                    if len(buffer) > 8 * 1024 * 1024:
+                        raise ValueError("For stor JPEG i forhåndsvisning")
+                    while (end := buffer.find(b"\xff\xd9")) >= 0:
+                        start = buffer.find(b"\xff\xd8")
+                        if start < 0 or start > end:
+                            del buffer[: end + 2]
+                            continue
+                        frame = bytes(buffer[start : end + 2])
+                        del buffer[: end + 2]
+                        if playing:
+                            if playback_started is None:
+                                playback_started = time.monotonic()
+                            delay = playback_started + frames / PREVIEW_FPS - time.monotonic()
+                            if cancel.wait(max(0, delay)):
+                                return
+                        timestamp = min(info.duration, position + frames / PREVIEW_FPS)
+                        frames += 1
+                        with self._condition:
+                            if generation == self._generation and not cancel.is_set():
+                                self._latest = (generation, frame, timestamp)
+                                self._activity = time.monotonic()
+                if not cancel.is_set():
+                    process.wait(timeout=3)
+                    with self._condition:
+                        if generation == self._generation:
+                            self._status = (
+                                generation,
+                                "finished" if frames and process.returncode == 0 else "error",
+                                "Kunne ikke hente et bilde fra videoen.",
+                            )
+            finally:
+                stop_process(process)
+                process.stdout.close()
+                with self._condition:
+                    if self._process is process:
+                        self._process = None
+
+
+class VideoCanvas(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.image = QImage()
+        self.message = "Velg en fil i køen"
+        self.setMinimumSize(200, 100)
+        self.setMaximumHeight(280)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setAccessibleName("Videoforhåndsvisning")
+
+    def sizeHint(self):
+        return QSize(360, 124)
+
+    def set_message(self, message):
+        self.image = QImage()
+        self.message = message
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#090f14"))
+        painter.drawRoundedRect(QRectF(self.rect()), 9, 9)
+        if not self.image.isNull():
+            size = self.image.size().scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio)
+            target = QRectF(
+                (self.width() - size.width()) / 2,
+                (self.height() - size.height()) / 2,
+                size.width(),
+                size.height(),
+            )
+            painter.drawImage(target, self.image)
+        else:
+            painter.setPen(QColor("#c3d0da"))
+            painter.drawText(
+                self.rect().adjusted(16, 12, -16, -12),
+                Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+                self.message,
+            )
+
+
+def time_text(seconds):
+    seconds = max(0, int(seconds))
+    return f"{seconds // 3600:02}:{seconds // 60 % 60:02}:{seconds % 60:02}"
+
+
+class PreviewPanel(QWidget):
+    frame_ready = Signal(float)
+
+    def __init__(self, ffmpeg: Path):
+        super().__init__()
+        self.setObjectName("previewPanel")
+        self.decoder = PreviewDecoder(ffmpeg)
+        self.info = None
+        self.generation = 0
+        self.position = 0.0
+        self.playing = False
+        self._key = None
+        self._closed = False
+        self._resume = False
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+        self.filename = PathLabel("Velg en fil i køen")
+        self.filename.setObjectName("selectionName")
+        layout.addWidget(self.filename)
+        self.canvas = VideoCanvas()
+        layout.addWidget(self.canvas, 1)
+        controls = QHBoxLayout()
+        controls.setSpacing(8)
+        self.play = QPushButton("Spill av")
+        self.play.setAccessibleName("Spill av eller sett forhåndsvisningen på pause")
+        self.play.setEnabled(False)
+        self.seek = QSlider(Qt.Orientation.Horizontal)
+        self.seek.setRange(0, 10000)
+        self.seek.setAccessibleName("Tidspunkt i videoforhåndsvisningen")
+        self.seek.setEnabled(False)
+        self.time = QLabel("00:00:00 / 00:00:00")
+        self.time.setObjectName("previewTime")
+        controls.addWidget(self.play)
+        controls.addWidget(self.seek, 1)
+        layout.addLayout(controls)
+        layout.addWidget(self.time)
+        self.details = QLabel()
+        self.details.setObjectName("muted")
+        self.details.setWordWrap(True)
+        layout.addWidget(self.details)
+        self.play.clicked.connect(self.toggle_play)
+        self.seek.sliderPressed.connect(self._start_seek)
+        self.seek.sliderReleased.connect(self._finish_seek)
+        self.seek.valueChanged.connect(self._seek_changed)
+        self.seek_timer = QTimer(self)
+        self.seek_timer.setSingleShot(True)
+        self.seek_timer.setInterval(160)
+        self.seek_timer.timeout.connect(self._request_frame)
+        self.timer = QTimer(self)
+        self.timer.setInterval(60)
+        self.timer.timeout.connect(self._poll)
+        self.timer.start()
+
+    def show_item(self, item: QueueItem | None):
+        if self._closed:
+            return
+        key = (item.id, item.info) if item else None
+        if key == self._key:
+            return
+        self._key = key
+        self.generation = self.decoder.request(None)
+        self.seek_timer.stop()
+        self.info = item.info if item else None
+        self.playing = self._resume = False
+        self.play.setText("Spill av")
+        self.play.setEnabled(False)
+        self.seek.setEnabled(False)
+        self.filename.setText(item.path.name if item else "Velg en fil i køen")
+        self.filename.setToolTip(str(item.path) if item else "")
+        self.details.clear()
+        self.position = 0.0
+        self._update_time()
+        if not item:
+            self.canvas.set_message("Velg en fil i køen")
+        elif not self.info:
+            self.canvas.set_message("Forhåndsvisning er ikke tilgjengelig før filen er analysert.")
+        elif not self.info.video:
+            self.canvas.set_message("Lydfil\nIngen videoforhåndsvisning")
+            self.details.setText(self.info.kind)
+        elif self.info.video.hdr:
+            self.canvas.set_message("HDR-forhåndsvisning er ikke tilgjengelig.")
+            self.details.setText("Velg eksportinnstillinger for å konvertere HDR-filen.")
+        else:
+            self.canvas.set_message("Henter forhåndsvisning …")
+            self.play.setEnabled(True)
+            self.seek.setEnabled(self.info.duration > 0)
+            self.details.setText(
+                f"{self.info.video.width} × {self.info.video.height} · {self.info.kind}\n"
+                "Forhåndsvisning uten lyd"
+            )
+            self.position = min(1.0, self.info.duration * 0.1)
+            self._request_frame()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "details") and self.parentWidget():
+            compact = self.parentWidget().height() < 300
+            self.details.setVisible(not compact)
+            self.time.setVisible(not compact)
+            margin = 12 if compact else 16
+            self.layout().setContentsMargins(margin, margin, margin, margin)
+            self.layout().setSpacing(8 if compact else 10)
+
+    def _request_frame(self):
+        if not self._closed and self.info and self.info.video:
+            self.generation = self.decoder.request(self.info, self.position, self.playing)
+            self._update_time()
+
+    def toggle_play(self):
+        if not self.info or not self.play.isEnabled():
+            return
+        self.seek_timer.stop()
+        self.playing = not self.playing
+        if self.playing and self.position >= self.info.duration - 0.15:
+            self.position = 0
+        self.play.setText("Pause" if self.playing else "Spill av")
+        self._request_frame()
+
+    def _start_seek(self):
+        self._resume = self.playing
+        self.playing = False
+        self.play.setText("Spill av")
+        self.generation = self.decoder.request(None)
+
+    def _seek_changed(self, value):
+        if not self.seek.isEnabled() or not self.info:
+            return
+        self.position = min(value / 10000 * self.info.duration, max(0, self.info.duration - 0.1))
+        self.generation = self.decoder.request(None)
+        self._update_time(update_slider=False)
+        self.seek_timer.start()
+
+    def _finish_seek(self):
+        self.seek_timer.stop()
+        self.playing = self._resume
+        self.play.setText("Pause" if self.playing else "Spill av")
+        self._request_frame()
+
+    def _update_time(self, *, update_slider=True):
+        duration = self.info.duration if self.info else 0
+        self.time.setText(f"{time_text(self.position)} / {time_text(duration)}")
+        if update_slider and not self.seek.isSliderDown():
+            self.seek.blockSignals(True)
+            self.seek.setValue(round(self.position / duration * 10000) if duration else 0)
+            self.seek.blockSignals(False)
+
+    def _poll(self):
+        latest, status = self.decoder.poll()
+        if latest and latest[0] == self.generation:
+            image = QImage.fromData(latest[1], "JPEG")
+            if not image.isNull():
+                self.canvas.image = image
+                self.canvas.update()
+                self.position = latest[2]
+                self._update_time()
+                self.frame_ready.emit(self.position)
+        if status and status[0] == self.generation:
+            self.playing = False
+            self.play.setText("Spill av")
+            if status[1] == "error":
+                self.canvas.set_message(status[2])
+
+    def pause(self):
+        if self.playing:
+            self.playing = False
+            self.play.setText("Spill av")
+            self._request_frame()
+
+    def shutdown(self):
+        self._closed = True
+        self.seek_timer.stop()
+        self.timer.stop()
+        self.decoder.stop()

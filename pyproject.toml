@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vestfold-media-converter"
+version = "0.1.0"
+description = "Portabel mediekonverter for Windows, med FFmpeg og Qt"
+requires-python = ">=3.12"
+license = "GPL-3.0-or-later"
+dependencies = ["PySide6-Essentials>=6.8,<7"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "pytest-qt>=4.4,<5", "pyinstaller>=6.11,<7", "ruff>=0.9,<1"]
+
+[project.scripts]
+vestfold-media-converter = "vestfold_converter.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vestfold_converter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: Faktisk FFmpeg-konvertering", "gui: Qt-grensesnitt"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+

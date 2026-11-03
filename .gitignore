@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+vendor/ffmpeg/bin/
+vendor/ffmpeg/downloads/
+vendor/ffmpeg/upstream/
+artifacts/
+*.log
+
