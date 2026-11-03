@@ -786,7 +786,7 @@ class MainWindow(QMainWindow):
             self.setProperty("compact", compact)
             self.drop_area.set_compact(compact, tight=tight)
             self.profile_motif.setVisible(not compact)
-            self.brand_icon.setFixedSize(48, 48) if compact else self.brand_icon.setFixedSize(64, 64)
+            self.brand_icon.setFixedSize(QSize(48, 48) if compact else QSize(64, 64))
             self.main_layout.setContentsMargins(*(18, 16, 18, 16) if compact else (28, 24, 28, 24))
             self.main_layout.setSpacing(10 if compact else 20)
             self.destination_layout.setContentsMargins(*(14, 10, 14, 10) if compact else (20, 16, 20, 16))

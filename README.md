@@ -6,6 +6,8 @@ Grensesnittet bruker Nunito, papirfargede flater og rødt/gult fra Vestfold-våp
 
 Øverst velges tema med tre ikoner: skjerm for systemtema, sol for lyst og måne for mørkt. Valgt ikon er markert. Pek på et ikon for forklaring; piltastene kan også brukes til å bytte tema.
 
+Ved oppstart tilpasses vinduet automatisk til skjermens tilgjengelige arbeidsflate, inkludert Windows-skalering og plass til oppgavelinjen. På lave skjermer brukes et mer kompakt oppsett, slik at import, målmappe og konverteringsknapp er synlige uten maksimering. Faktisk skjermtilpasning kan kontrolleres med `uv run --frozen --offline python scripts/check_window_layout.py`.
+
 Små geometriske detaljer og lyse naturtoner er inspirert av fylkeskommunens designmanual. Se [visuell retning](docs/DESIGN.md) for kilder og tilpasninger.
 
 ## Bruk
