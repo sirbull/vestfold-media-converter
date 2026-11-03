@@ -14,22 +14,34 @@ output = Path(__file__).resolve().parents[1] / "artifacts" / "layout"
 output.mkdir(parents=True, exist_ok=True)
 app = QApplication([])
 app.setStyle("Fusion")
-window = MainWindow(MediaEngine(*bundled_tools()), initialize=False,
-                    preferences_path=output / "settings.json")
+window = MainWindow(
+    MediaEngine(*bundled_tools()), initialize=False, preferences_path=output / "settings.json"
+)
 window.show()
 
 
 def check():
     available = window.screen().availableGeometry()
     controls = {}
-    for name in ("add_files", "add_folder", "drop_area", "destination_card", "open_folder", "convert", "theme"):
+    for name in (
+        "add_files",
+        "add_folder",
+        "drop_area",
+        "destination_card",
+        "open_folder",
+        "convert",
+        "theme",
+    ):
         widget = getattr(window, name)
         rect = QRect(widget.mapToGlobal(QPoint(0, 0)), widget.size())
         controls[name] = widget.isVisible() and available.contains(rect)
     result = {
-        "available": available.getRect(), "frame": window.frameGeometry().getRect(),
-        "client": window.size().toTuple(), "device_pixel_ratio": window.screen().devicePixelRatio(),
-        "frame_fits": available.contains(window.frameGeometry()), "maximized": window.isMaximized(),
+        "available": available.getRect(),
+        "frame": window.frameGeometry().getRect(),
+        "client": window.size().toTuple(),
+        "device_pixel_ratio": window.screen().devicePixelRatio(),
+        "frame_fits": available.contains(window.frameGeometry()),
+        "maximized": window.isMaximized(),
         "controls_fit": controls,
     }
     window.grab().save(str(output / "startup.png"))
