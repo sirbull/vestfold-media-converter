@@ -10,14 +10,13 @@ from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QPushButton,
     QSizePolicy,
     QSlider,
     QVBoxLayout,
     QWidget,
 )
 
-from .appearance import PathLabel
+from .appearance import IconButton, PathLabel
 from .models import MediaInfo, QueueItem
 from .process import CREATE_FLAGS, stop_process
 
@@ -255,17 +254,24 @@ class PreviewPanel(QWidget):
         self.canvas = VideoCanvas()
         layout.addWidget(self.canvas, 1)
         controls = QHBoxLayout()
-        controls.setSpacing(8)
-        self.play = QPushButton("Spill av")
-        self.play.setAccessibleName("Spill av eller sett forhåndsvisningen på pause")
-        self.play.setEnabled(False)
+        controls.setSpacing(6)
+        self.skip_back = IconButton("backward", "Hopp 5 sekunder bakover")
+        self.play = IconButton("play_filled", "Spill av forhåndsvisning")
+        self.skip_forward = IconButton("forward", "Hopp 5 sekunder fremover")
+        for button in (self.skip_back, self.play, self.skip_forward):
+            button.setObjectName("previewControl")
+            button.setFixedSize(32, 32)
+            button.setEnabled(False)
         self.seek = QSlider(Qt.Orientation.Horizontal)
         self.seek.setRange(0, 10000)
         self.seek.setAccessibleName("Tidspunkt i videoforhåndsvisningen")
         self.seek.setEnabled(False)
+        self.seek.setMinimumWidth(48)
         self.time = QLabel("00:00:00 / 00:00:00")
         self.time.setObjectName("previewTime")
+        controls.addWidget(self.skip_back)
         controls.addWidget(self.play)
+        controls.addWidget(self.skip_forward)
         controls.addWidget(self.seek, 1)
         layout.addLayout(controls)
         layout.addWidget(self.time)
@@ -274,6 +280,8 @@ class PreviewPanel(QWidget):
         self.details.setWordWrap(True)
         layout.addWidget(self.details)
         self.play.clicked.connect(self.toggle_play)
+        self.skip_back.clicked.connect(lambda: self.skip_seconds(-5))
+        self.skip_forward.clicked.connect(lambda: self.skip_seconds(5))
         self.seek.sliderPressed.connect(self._start_seek)
         self.seek.sliderReleased.connect(self._finish_seek)
         self.seek.valueChanged.connect(self._seek_changed)
@@ -297,8 +305,10 @@ class PreviewPanel(QWidget):
         self.seek_timer.stop()
         self.info = item.info if item else None
         self.playing = self._resume = False
-        self.play.setText("Spill av")
+        self._update_play_button()
         self.play.setEnabled(False)
+        self.skip_back.setEnabled(False)
+        self.skip_forward.setEnabled(False)
         self.seek.setEnabled(False)
         self.filename.setText(item.path.name if item else "Velg en fil i køen")
         self.filename.setToolTip(str(item.path) if item else "")
@@ -319,6 +329,8 @@ class PreviewPanel(QWidget):
             self.canvas.set_message("Henter forhåndsvisning …")
             self.play.setEnabled(True)
             self.seek.setEnabled(self.info.duration > 0)
+            self.skip_back.setEnabled(self.info.duration > 0)
+            self.skip_forward.setEnabled(self.info.duration > 0)
             self.details.setText(
                 f"{self.info.video.width} × {self.info.video.height} · {self.info.kind}\n"
                 "Forhåndsvisning uten lyd"
@@ -348,13 +360,26 @@ class PreviewPanel(QWidget):
         self.playing = not self.playing
         if self.playing and self.position >= self.info.duration - 0.15:
             self.position = 0
-        self.play.setText("Pause" if self.playing else "Spill av")
+        self._update_play_button()
+        self._request_frame()
+
+    def _update_play_button(self):
+        self.play.set_symbol(
+            "pause" if self.playing else "play_filled",
+            "Sett forhåndsvisning på pause" if self.playing else "Spill av forhåndsvisning",
+        )
+
+    def skip_seconds(self, seconds):
+        if self._closed or not self.info or not self.seek.isEnabled():
+            return
+        self.seek_timer.stop()
+        self.position = max(0.0, min(self.position + seconds, max(0.0, self.info.duration - 0.1)))
         self._request_frame()
 
     def _start_seek(self):
         self._resume = self.playing
         self.playing = False
-        self.play.setText("Spill av")
+        self._update_play_button()
         self.generation = self.decoder.request(None)
 
     def _seek_changed(self, value):
@@ -368,7 +393,7 @@ class PreviewPanel(QWidget):
     def _finish_seek(self):
         self.seek_timer.stop()
         self.playing = self._resume
-        self.play.setText("Pause" if self.playing else "Spill av")
+        self._update_play_button()
         self._request_frame()
 
     def _update_time(self, *, update_slider=True):
@@ -391,14 +416,14 @@ class PreviewPanel(QWidget):
                 self.frame_ready.emit(self.position)
         if status and status[0] == self.generation:
             self.playing = False
-            self.play.setText("Spill av")
+            self._update_play_button()
             if status[1] == "error":
                 self.canvas.set_message(status[2])
 
     def pause(self):
         if self.playing:
             self.playing = False
-            self.play.setText("Spill av")
+            self._update_play_button()
             self._request_frame()
 
     def shutdown(self):

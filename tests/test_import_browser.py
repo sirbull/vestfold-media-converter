@@ -127,6 +127,8 @@ def test_browser_controls_fit_small_window(qtbot, browser, width, height):
         browser.import_button,
         browser.cancel,
         browser.view_buttons["grid"],
+        browser.search_input,
+        browser.search_button,
         browser.preview.play,
     ):
         rect = QRect(widget.mapTo(browser, QPoint(0, 0)), widget.size())

@@ -3,7 +3,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPointF, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import Property, QEvent, QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -11,6 +11,7 @@ from PySide6.QtGui import (
     QIcon,
     QPainter,
     QPainterPath,
+    QPalette,
     QPen,
     QPixmap,
     QRegion,
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListView,
+    QPushButton,
     QSizePolicy,
     QStyle,
     QStyledItemDelegate,
@@ -341,6 +343,34 @@ def _paint_line_icon(painter: QPainter, rect: QRectF, name: str, color: str) -> 
         path.lineTo(16, 12)
         path.lineTo(10, 16)
         path.closeSubpath()
+    elif name == "play_filled":
+        path.moveTo(8, 5)
+        path.lineTo(18, 12)
+        path.lineTo(8, 19)
+        path.closeSubpath()
+        painter.setBrush(QColor(color))
+    elif name == "pause":
+        path.addRect(QRectF(7, 5, 3, 14))
+        path.addRect(QRectF(14, 5, 3, 14))
+        painter.setBrush(QColor(color))
+    elif name in {"backward", "forward"}:
+        x = 15 if name == "backward" else 9
+        tip = 8 if name == "backward" else 16
+        path.moveTo(x, 5)
+        path.lineTo(tip, 12)
+        path.lineTo(x, 19)
+    elif name == "list":
+        for y in (6, 12, 18):
+            painter.drawPoint(QPointF(4, y))
+            painter.drawLine(QPointF(9, y), QPointF(20, y))
+    elif name == "grid":
+        for x in (4, 14):
+            for y in (4, 14):
+                path.addRoundedRect(QRectF(x, y, 6, 6), 1, 1)
+    elif name == "search":
+        painter.drawEllipse(QRectF(4, 4, 11, 11))
+        path.moveTo(14, 14)
+        path.lineTo(21, 21)
     elif name == "audio":
         path.moveTo(10, 17)
         path.lineTo(10, 5)
@@ -437,6 +467,47 @@ def line_icon(name: str, color: str) -> QIcon:
             painter.end()
             icon.addPixmap(pixmap)
     return icon
+
+
+class IconButton(QPushButton):
+    """Keep line icons in sync with the button's themed text color."""
+
+    def __init__(self, symbol, description):
+        super().__init__()
+        self.symbol = symbol
+        self._checked_icon_color = ""
+        self.setAutoDefault(False)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setIconSize(QSize(20, 20))
+        self.set_symbol(symbol, description)
+        self.toggled.connect(self._refresh_icon)
+
+    @Property(str)
+    def checkedIconColor(self):
+        return getattr(self, "_checked_icon_color", "")
+
+    @checkedIconColor.setter
+    def checkedIconColor(self, color):
+        self._checked_icon_color = color
+        if hasattr(self, "symbol"):
+            self._refresh_icon()
+
+    def set_symbol(self, symbol, description):
+        self.symbol = symbol
+        self.setAccessibleName(description)
+        self.setToolTip(description)
+        self._refresh_icon()
+
+    def _refresh_icon(self):
+        color = self.palette().color(QPalette.ColorRole.ButtonText).name()
+        if self.isChecked() and self._checked_icon_color:
+            color = self._checked_icon_color
+        self.setIcon(line_icon(self.symbol, color))
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() in {QEvent.Type.PaletteChange, QEvent.Type.StyleChange} and hasattr(self, "symbol"):
+            self._refresh_icon()
 
 
 class PathLabel(QLabel):
@@ -580,9 +651,18 @@ def stylesheet(c: dict) -> str:
         QTreeView#browserFiles::item {{ min-height: 26px; padding: 2px 4px; }}
         QDialog#importBrowser QPushButton:checked {{
             background: {c["yellow"]}; color: {c["yellow_text"]}; border-color: {c["yellow"]}; }}
-        QSplitter#importSplitter::handle {{ background: {c["border"]};
-            border-radius: 3px; margin: 10px 3px; }}
-        QSplitter#importSplitter::handle:hover {{ background: {c["accent"]}; }}
+        QSplitter#importSplitter::handle, QSplitter#importSplitter::handle:hover {{
+            background: transparent; border: 0; margin: 0; }}
+        QFrame#browserPane {{ background: {c["surface"]}; border: 1px solid {c["border"]};
+            border-radius: 8px; }}
+        QFrame#browserPane QTreeView, QFrame#browserPane QListView {{ border: 0; }}
+        QLineEdit#browserSearch {{ padding: 4px 6px; min-height: 18px; max-height: 18px; }}
+        QLineEdit#browserSearch:focus {{ border: 1px solid {c["accent"]}; }}
+        QPushButton#browserViewButton {{ padding: 0; min-height: 26px; max-height: 26px;
+            min-width: 26px; max-width: 26px;
+            qproperty-checkedIconColor: "{c["yellow_text"]}"; }}
+        QDialog#importBrowser QPushButton#browserViewButton:focus {{
+            border: 1px solid {c["accent"]}; }}
         QScrollArea#browserPath, QScrollArea#browserPath QWidget {{ background: transparent; border: 0; }}
         QScrollArea#browserPath QToolButton#pathPart {{ background: transparent;
             border: 0; padding: 2px 4px; min-height: 0; font-size: 9pt; }}
@@ -615,6 +695,9 @@ def stylesheet(c: dict) -> str:
         QPushButton:focus, QToolButton:focus, QComboBox:focus, QLineEdit:focus, QSpinBox:focus {{
             border: 2px solid {c["accent"]}; }}
         QPushButton:disabled, QToolButton:disabled {{ color: {c["muted"]}; background: {c["raised"]}; }}
+        QPushButton#previewControl {{ padding: 0; min-height: 30px; max-height: 30px;
+            min-width: 30px; max-width: 30px; }}
+        QPushButton#previewControl:focus {{ border: 1px solid {c["accent"]}; }}
         QPushButton#filledButton {{ background: {c["nav"]}; color: #ffffff;
             border-color: {c["nav"]}; }}
         QPushButton#filledButton:hover {{ border-color: {c["accent"]}; }}

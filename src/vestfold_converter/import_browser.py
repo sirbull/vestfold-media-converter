@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
     QFileSystemModel,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -26,8 +27,10 @@ from PySide6.QtWidgets import (
     QStyle,
     QTreeView,
     QVBoxLayout,
+    QWidget,
 )
 
+from .appearance import IconButton
 from .background import LatestRequest
 from .models import MediaError, QueueItem
 from .path_bar import PathBar
@@ -95,17 +98,15 @@ class ImportBrowser(QDialog):
         self.address.returnPressed.connect(self._open_address)
         toolbar.addWidget(self.address, 1)
         self.search_input = QLineEdit()
+        self.search_input.setObjectName("browserSearch")
         self.search_input.setAccessibleName("Søk etter filnavn med Windows Search")
         self.search_input.setPlaceholderText("Søk filnavn i Windows …")
         self.search_input.setToolTip("Søk på hele maskinen i filene som Windows har indeksert")
-        self.search_input.setMinimumWidth(140)
-        self.search_input.setMaximumWidth(240)
+        self.search_input.setMinimumWidth(80)
         self.search_input.setMaxLength(200)
         self.search_input.setClearButtonEnabled(True)
         self.search_input.returnPressed.connect(self.start_search)
         self.search_input.textChanged.connect(self._search_edited)
-        toolbar.addWidget(self.search_input)
-        self.search_button = self._button("Søk", toolbar, self.start_search)
         layout.addLayout(toolbar)
         views = QHBoxLayout()
         self.location = QLabel("Velg filer. Ctrl/Shift markerer flere.")
@@ -114,13 +115,6 @@ class ImportBrowser(QDialog):
         views.addWidget(self.location, 1)
         self.reveal_folder = self._button("Vis mappe", views, self.reveal_selected)
         self.reveal_folder.setVisible(False)
-        self.view_group = QButtonGroup(self)
-        self.view_buttons = {}
-        for index, (mode, label) in enumerate((("list", "Liste"), ("grid", "Rutenett"))):
-            button = self._button(label, views, lambda checked=False, m=mode: self.set_view(m))
-            button.setCheckable(True)
-            self.view_group.addButton(button, index)
-            self.view_buttons[mode] = button
         self.native = self._button(
             "Utforsker …" if os.name == "nt" else "Systemets filvelger …", views, self.open_native
         )
@@ -152,6 +146,34 @@ class ImportBrowser(QDialog):
         self.search_selection = QItemSelectionModel(self.search_model, self)
         self.stack = QStackedWidget()
         self.stack.setMinimumWidth(220)
+        self.file_pane = QFrame()
+        self.file_pane.setObjectName("browserPane")
+        file_layout = QVBoxLayout(self.file_pane)
+        file_layout.setContentsMargins(8, 8, 8, 8)
+        file_layout.setSpacing(8)
+        self.file_toolbar = QWidget()
+        file_tools = QHBoxLayout(self.file_toolbar)
+        file_tools.setContentsMargins(0, 0, 0, 0)
+        file_tools.setSpacing(6)
+        file_tools.addWidget(self.search_input, 1)
+        self.search_button = IconButton("search", "Søk etter filnavn med Windows Search")
+        self.search_button.setObjectName("browserViewButton")
+        self.search_button.setIconSize(QSize(16, 16))
+        self.search_button.clicked.connect(self.start_search)
+        file_tools.addWidget(self.search_button)
+        self.view_group = QButtonGroup(self)
+        self.view_buttons = {}
+        for index, (mode, label) in enumerate((("list", "Listevisning"), ("grid", "Rutenettvisning"))):
+            button = IconButton(mode, label)
+            button.setObjectName("browserViewButton")
+            button.setIconSize(QSize(16, 16))
+            button.setCheckable(True)
+            button.clicked.connect(lambda checked=False, m=mode: self.set_view(m))
+            self.view_group.addButton(button, index)
+            self.view_buttons[mode] = button
+            file_tools.addWidget(button)
+        file_layout.addWidget(self.file_toolbar)
+        file_layout.addWidget(self.stack, 1)
         self.list_view = QTreeView()
         self.list_view.setObjectName("browserFiles")
         self.list_view.setAccessibleName("Filer som liste")
@@ -182,7 +204,7 @@ class ImportBrowser(QDialog):
         self.list_view.setColumnWidth(0, 240)
         self.list_view.setColumnWidth(1, 80)
         self.list_view.hideColumn(2)
-        self.splitter.addWidget(self.stack)
+        self.splitter.addWidget(self.file_pane)
         self.preview = PreviewPanel(engine.ffmpeg)
         self.preview.setMinimumWidth(220)
         self.preview.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)

@@ -12,6 +12,7 @@
 - 64-bit filstørrelser over 4 GB med simulert stat-resultat, uten å allokere gigabyte i testene.
 - Qt-flyter med faktisk bakgrunnsanalyse og konvertering: blandet kø uten justeringer, kun lydinnstillinger for lydfiler, flervalg og lukking under arbeid.
 - FFmpeg-basert forhåndsvisning: MTS/MP4/interlaced video, stillbilde, avspilling/pause, søking til en annen scene, kansellering ved bytte til lyd, lesefeil og opprydding. Mappeimport og valg av en annen rad styrer forhåndsvisningen ved siden av køen, også i kompakt visning.
+- Avspillingsikoner og hopp på fem sekunder: sceneendring med ekte video, avgrensning ved start/slutt, fortsatt avspilling etter hopp og deaktivering for lydfiler. Små vinduer kontrolleres også med søkefelt og visningsikoner inne i filpanelet.
 - Importbrowser: forhåndsvisning og avspilling før import, flervalg på tvers av liste/rutenett, navigasjon, filfilter, justerbar panelbredde, små vinduer og opprydding ved avbrudd. Feil ved lesing av Hurtigtilgang og systemfilvelgerens retur/avbrudd testes uten å endre systemets snarveier.
 - Klikkbar filsti og Windows-søk: søketreff med forhåndsvisning, bytte av visning, åpning av treffets mappe, tomme treff, utilgjengelig indeks og kansellering ved mappebytte. Søkeord med apostrofer, SQL-jokertegn og norsk tekst testes som data, sammen med resultatgrense og ugyldige svar fra søketjenesten. Automatiske tester bruker simulerte indekssvar; faktisk Windows Search kontrolleres separat fra terminalen.
 

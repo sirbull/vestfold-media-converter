@@ -96,12 +96,87 @@ def test_switching_to_audio_clears_video_and_cancels_decoder(qtbot, engine, medi
         panel.show_item(QueueItem(media["wav"], info=engine.analyze(media["wav"])))
         assert panel.canvas.image.isNull()
         assert not panel.play.isEnabled()
+        assert not panel.skip_back.isEnabled()
+        assert not panel.skip_forward.isEnabled()
         assert not panel.playing
         qtbot.wait(300)
         assert panel.canvas.image.isNull()
         assert "Lydfil" in panel.canvas.message
     finally:
         panel.shutdown()
+
+
+def test_five_second_buttons_seek_scenes_clamp_and_keep_playing(qtbot, engine, tmp_path):
+    source = tmp_path / "tolv sekunder.mp4"
+    subprocess.run(
+        [
+            str(engine.ffmpeg),
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=red:s=128x72:r=12:d=6",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=blue:s=128x72:r=12:d=6",
+            "-filter_complex",
+            "[0:v][1:v]concat=n=2:v=1:a=0[v]",
+            "-map",
+            "[v]",
+            "-c:v",
+            "libx264",
+            str(source),
+        ],
+        check=True,
+        capture_output=True,
+        creationflags=CREATE_FLAGS,
+        timeout=30,
+    )
+    panel = PreviewPanel(engine.ffmpeg)
+    qtbot.addWidget(panel)
+    panel.show()
+    panel.show_item(QueueItem(source, info=engine.analyze(source)))
+    try:
+        wait_image(qtbot, panel)
+        assert panel.play.text() == ""
+        assert not panel.play.icon().isNull()
+        assert panel.play.accessibleName() == "Spill av forhåndsvisning"
+        assert panel.position == pytest.approx(1)
+        assert panel.canvas.image.pixelColor(20, 20).red() > 200
+        with qtbot.waitSignal(panel.frame_ready, timeout=15000):
+            qtbot.mouseClick(panel.skip_forward, Qt.MouseButton.LeftButton)
+        assert panel.position == pytest.approx(6)
+        assert panel.canvas.image.pixelColor(20, 20).blue() > 200
+        with qtbot.waitSignal(panel.frame_ready, timeout=15000):
+            qtbot.mouseClick(panel.skip_back, Qt.MouseButton.LeftButton)
+        assert panel.position == pytest.approx(1)
+        assert panel.canvas.image.pixelColor(20, 20).red() > 200
+        with qtbot.waitSignal(panel.frame_ready, timeout=15000):
+            qtbot.mouseClick(panel.skip_back, Qt.MouseButton.LeftButton)
+        assert panel.position == 0
+        # Repeated clicks must never request a frame beyond the source's end.
+        for _ in range(3):
+            qtbot.mouseClick(panel.skip_forward, Qt.MouseButton.LeftButton)
+        assert panel.position == pytest.approx(11.9)
+        assert not panel.playing
+        qtbot.mouseClick(panel.skip_back, Qt.MouseButton.LeftButton)
+        qtbot.mouseClick(panel.play, Qt.MouseButton.LeftButton)
+        assert panel.playing
+        assert panel.play.accessibleName() == "Sett forhåndsvisning på pause"
+        previous = panel.position
+        qtbot.mouseClick(panel.skip_back, Qt.MouseButton.LeftButton)
+        assert panel.position == pytest.approx(previous - 5)
+        assert panel.playing
+        with qtbot.waitSignal(panel.frame_ready, timeout=15000):
+            pass
+        qtbot.mouseClick(panel.play, Qt.MouseButton.LeftButton)
+        assert not panel.playing
+        assert panel.play.accessibleName() == "Spill av forhåndsvisning"
+    finally:
+        panel.shutdown()
+    qtbot.waitUntil(lambda: not panel.decoder.thread.is_alive(), timeout=8000)
 
 
 def test_unreadable_source_reports_preview_error(qtbot, engine, media, tmp_path):
