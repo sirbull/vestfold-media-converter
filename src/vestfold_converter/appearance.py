@@ -742,8 +742,10 @@ def stylesheet(c: dict) -> str:
             border-radius: 10px; min-height: 160px; }}
         QPushButton#dropArea:hover, QPushButton#dropArea:focus {{ background: {c["hover"]}; border-color: {c["accent"]}; }}
         QLabel#dropTitle {{ font-size: 21pt; font-weight: 850; }}
-        QLabel#dropAction {{ background: {c["primary"]}; color: {c["primary_text"]};
-            border-radius: 6px; padding: 10px 26px; font-weight: 800; }}
+        QPushButton#dropAction {{ background: {c["primary"]}; color: {c["primary_text"]};
+            border: 1px solid {c["primary"]}; border-radius: 6px; padding: 9px 25px; font-weight: 800; }}
+        QPushButton#dropAction:hover {{ background: {c["primary_hover"]}; border-color: {c["primary_hover"]}; }}
+        QPushButton#dropAction:focus {{ border: 1px solid {c["yellow"]}; }}
         QFrame#queueCard, QFrame#destination, QScrollArea#settingsCard {{ background: {c["surface"]};
             border: 1px solid {c["border"]}; border-radius: 8px; }}
         QTableWidget {{ background: {c["surface"]}; border: 0; selection-background-color: {c["selected"]};

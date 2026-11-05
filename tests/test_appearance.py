@@ -12,7 +12,23 @@ from vestfold_converter.appearance import (
     stylesheet,
 )
 from vestfold_converter.storage import load_preferences, save_preferences
-from vestfold_converter.ui import MainWindow
+from vestfold_converter.ui import DropArea, MainWindow
+
+
+def test_drop_action_and_outer_area_each_request_import_once(qtbot):
+    widget = DropArea()
+    qtbot.addWidget(widget)
+    widget.resize(600, 400)
+    widget.show()
+    requests = []
+    widget.clicked.connect(lambda checked=False: requests.append("import"))
+    qtbot.mouseClick(widget.action_button, Qt.MouseButton.LeftButton)
+    assert len(requests) == 1
+    qtbot.mouseClick(widget, Qt.MouseButton.LeftButton, pos=QPoint(8, 8))
+    assert len(requests) == 2
+    widget.setEnabled(False)
+    qtbot.mouseClick(widget.action_button, Qt.MouseButton.LeftButton)
+    assert len(requests) == 2
 
 
 @pytest.mark.parametrize("size", [18, 20, 22, 24, 25])
