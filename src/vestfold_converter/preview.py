@@ -1,8 +1,10 @@
-"""Begrenset videoforhåndsvisning med medfølgende FFmpeg, uten systemkodeker."""
+"""Begrenset forhåndsvisning med medfølgende FFmpeg, uten systemkodeker."""
 
+import ctypes
 import subprocess
 import threading
 import time
+from ctypes import wintypes
 from pathlib import Path
 
 from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
@@ -183,6 +185,185 @@ class PreviewDecoder:
                         self._process = None
 
 
+AUDIO_RATE = 48000
+AUDIO_FRAME_BYTES = 4  # 16-bit stereo
+AUDIO_CHUNK = AUDIO_RATE * AUDIO_FRAME_BYTES // 5  # 0,2 sekunder per buffer
+AUDIO_BUFFERS = 4
+
+
+def audio_preview_command(ffmpeg: Path, info: MediaInfo, position: float) -> list[str]:
+    args = [str(ffmpeg), "-hide_banner", "-loglevel", "error", "-nostdin", "-protocol_whitelist", "file,pipe"]
+    args += ["-ss", f"{max(0.0, position):.3f}", "-i", str(info.path)]
+    args += ["-map", f"0:{info.default_audio.index}", "-vn", "-sn", "-dn", "-ac", "2", "-ar", str(AUDIO_RATE)]
+    return args + ["-c:a", "pcm_s16le", "-f", "s16le", "pipe:1"]
+
+
+class _WaveFormat(ctypes.Structure):
+    _fields_ = [
+        ("wFormatTag", wintypes.WORD),
+        ("nChannels", wintypes.WORD),
+        ("nSamplesPerSec", wintypes.DWORD),
+        ("nAvgBytesPerSec", wintypes.DWORD),
+        ("nBlockAlign", wintypes.WORD),
+        ("wBitsPerSample", wintypes.WORD),
+        ("cbSize", wintypes.WORD),
+    ]
+
+
+class _WaveHeader(ctypes.Structure):
+    _fields_ = [
+        ("lpData", ctypes.c_void_p),
+        ("dwBufferLength", wintypes.DWORD),
+        ("dwBytesRecorded", wintypes.DWORD),
+        ("dwUser", ctypes.c_size_t),
+        ("dwFlags", wintypes.DWORD),
+        ("dwLoops", wintypes.DWORD),
+        ("lpNext", ctypes.c_void_p),
+        ("reserved", ctypes.c_size_t),
+    ]
+
+
+class _MMTime(ctypes.Structure):
+    _fields_ = [("wType", wintypes.UINT), ("sample", wintypes.DWORD), ("_pad", wintypes.DWORD)]
+
+
+class WaveOut:
+    """Windows' innebygde lydutgang (winmm). Ingen ekstra biblioteker eller systemkodeker."""
+
+    def __init__(self):
+        try:
+            self._winmm = ctypes.WinDLL("winmm")
+        except (AttributeError, OSError) as exc:
+            raise OSError("Lydavspilling støttes bare på Windows.") from exc
+        fmt = _WaveFormat(1, 2, AUDIO_RATE, AUDIO_RATE * AUDIO_FRAME_BYTES, AUDIO_FRAME_BYTES, 16, 0)
+        self._handle = ctypes.c_void_p()
+        # WAVE_MAPPER velger standard lydutgang, CALLBACK_NULL betyr at vi spør etter status selv.
+        wave_mapper = wintypes.UINT(0xFFFFFFFF)
+        if self._winmm.waveOutOpen(ctypes.byref(self._handle), wave_mapper, ctypes.byref(fmt), None, None, 0):
+            raise OSError("Fant ingen lydutgang.")
+        self._queued = []
+
+    def write(self, data: bytes) -> None:
+        buffer = ctypes.create_string_buffer(data, len(data))
+        header = _WaveHeader(ctypes.cast(buffer, ctypes.c_void_p), len(data))
+        size = ctypes.sizeof(header)
+        self._winmm.waveOutPrepareHeader(self._handle, ctypes.byref(header), size)
+        if self._winmm.waveOutWrite(self._handle, ctypes.byref(header), size):
+            self._winmm.waveOutUnprepareHeader(self._handle, ctypes.byref(header), size)
+            raise OSError("Lydutgangen avviste lyden.")
+        self._queued.append((header, buffer))
+
+    def pending(self) -> int:
+        """Antall buffere som ikke er spilt ferdig. Ferdige buffere frigis."""
+        still = []
+        for header, buffer in self._queued:
+            if header.dwFlags & 1:  # WHDR_DONE
+                self._winmm.waveOutUnprepareHeader(self._handle, ctypes.byref(header), ctypes.sizeof(header))
+            else:
+                still.append((header, buffer))
+        self._queued = still
+        return len(still)
+
+    def played_seconds(self) -> float:
+        position = _MMTime(2)  # TIME_SAMPLES
+        self._winmm.waveOutGetPosition(self._handle, ctypes.byref(position), ctypes.sizeof(position))
+        # Noen drivere svarer i byte selv om vi ber om samples.
+        frames = position.sample / AUDIO_FRAME_BYTES if position.wType == 4 else position.sample
+        return frames / AUDIO_RATE
+
+    def close(self) -> None:
+        self._winmm.waveOutReset(self._handle)
+        self.pending()
+        self._winmm.waveOutClose(self._handle)
+
+
+class AudioPlayer:
+    """Spiller lydsporet fra en posisjon. Pause og søk starter en ny, kort FFmpeg-prosess."""
+
+    def __init__(self, ffmpeg: Path, output=WaveOut):
+        self.ffmpeg = ffmpeg
+        self._output = output
+        self._lock = threading.Lock()
+        self._cancel = threading.Event()
+        self._process = None
+        self._start = 0.0
+        self._played = 0.0
+        self.finished = False
+        self.error = ""
+        self.thread = None
+
+    def play(self, info: MediaInfo, position: float) -> None:
+        self.stop()
+        self._cancel = cancel = threading.Event()
+        self._start, self._played = position, 0.0
+        self.finished, self.error = False, ""
+        self.thread = threading.Thread(
+            target=self._run, args=(info, position, cancel), name="Lydforhåndsvisning", daemon=True
+        )
+        self.thread.start()
+
+    def position(self) -> float:
+        with self._lock:
+            return self._start + self._played
+
+    def stop(self) -> None:
+        self._cancel.set()
+        with self._lock:
+            process = self._process
+        PreviewDecoder._terminate(process)
+
+    def _run(self, info, position, cancel):
+        output = None
+        try:
+            # FFmpeg starter mens lydenheten åpnes; første åpning kan ta et halvt sekund.
+            with subprocess.Popen(
+                audio_preview_command(self.ffmpeg, info, position),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                creationflags=CREATE_FLAGS,
+            ) as process:
+                with self._lock:
+                    self._process = process
+                try:
+                    try:
+                        output = self._output()
+                    except OSError as exc:
+                        if not cancel.is_set():
+                            self.error = str(exc)
+                        return
+                    self._feed(output, process, cancel)
+                finally:
+                    stop_process(process)
+                    process.stdout.close()
+                    with self._lock:
+                        self._process = None
+        except (OSError, ValueError, subprocess.SubprocessError):
+            if not cancel.is_set():
+                self.error = "Kunne ikke spille av lyden. Filen kan være skadet."
+        finally:
+            if output:
+                output.close()
+
+    def _feed(self, output, process, cancel):
+        ended = False
+        while not cancel.is_set():
+            while not ended and output.pending() < AUDIO_BUFFERS:
+                data = process.stdout.read(AUDIO_CHUNK)
+                data = data[: len(data) - len(data) % AUDIO_FRAME_BYTES]
+                if not data:
+                    ended = True
+                    break
+                output.write(data)
+            with self._lock:
+                if not cancel.is_set():
+                    self._played = output.played_seconds()
+            if ended and not output.pending():
+                self.finished = not cancel.is_set()
+                return
+            cancel.wait(0.02)
+
+
 class VideoCanvas(QWidget):
     def __init__(self):
         super().__init__()
@@ -238,6 +419,8 @@ class PreviewPanel(QWidget):
         super().__init__()
         self.setObjectName("previewPanel")
         self.decoder = PreviewDecoder(ffmpeg)
+        self.audio = AudioPlayer(ffmpeg)
+        self.audio_only = False
         self.info = None
         self.generation = 0
         self.position = 0.0
@@ -264,7 +447,7 @@ class PreviewPanel(QWidget):
             button.setEnabled(False)
         self.seek = QSlider(Qt.Orientation.Horizontal)
         self.seek.setRange(0, 10000)
-        self.seek.setAccessibleName("Tidspunkt i videoforhåndsvisningen")
+        self.seek.setAccessibleName("Tidspunkt i forhåndsvisningen")
         self.seek.setEnabled(False)
         self.seek.setMinimumWidth(48)
         self.time = QLabel("00:00:00 / 00:00:00")
@@ -279,6 +462,8 @@ class PreviewPanel(QWidget):
         self.details.setObjectName("muted")
         self.details.setWordWrap(True)
         layout.addWidget(self.details)
+        # Tar bare plass når videoboksen er skjult for lydfiler.
+        layout.addStretch()
         self.play.clicked.connect(self.toggle_play)
         self.skip_back.clicked.connect(lambda: self.skip_seconds(-5))
         self.skip_forward.clicked.connect(lambda: self.skip_seconds(5))
@@ -302,8 +487,11 @@ class PreviewPanel(QWidget):
             return
         self._key = key
         self.generation = self.decoder.request(None)
+        self.audio.stop()
         self.seek_timer.stop()
         self.info = item.info if item else None
+        self.audio_only = bool(self.info and not self.info.video and self.info.audio)
+        self.canvas.setVisible(not self.audio_only)
         self.playing = self._resume = False
         self._update_play_button()
         self.play.setEnabled(False)
@@ -319,8 +507,14 @@ class PreviewPanel(QWidget):
             self.canvas.set_message("Velg en fil i køen")
         elif not self.info:
             self.canvas.set_message("Forhåndsvisning er ikke tilgjengelig før filen er analysert.")
+        elif self.audio_only:
+            self.canvas.set_message("")
+            enabled = self.info.duration > 0
+            for control in (self.play, self.seek, self.skip_back, self.skip_forward):
+                control.setEnabled(enabled)
+            self.details.setText(self.info.kind)
         elif not self.info.video:
-            self.canvas.set_message("Lydfil\nIngen videoforhåndsvisning")
+            self.canvas.set_message("Ingen forhåndsvisning")
             self.details.setText(self.info.kind)
         elif self.info.video.hdr:
             self.canvas.set_message("HDR-forhåndsvisning er ikke tilgjengelig.")
@@ -349,7 +543,15 @@ class PreviewPanel(QWidget):
             self.layout().setSpacing(8 if compact else 10)
 
     def _request_frame(self):
-        if not self._closed and self.info and self.info.video:
+        if self._closed or not self.info:
+            return
+        if self.audio_only:
+            if self.playing:
+                self.audio.play(self.info, self.position)
+            else:
+                self.audio.stop()
+            self._update_time()
+        elif self.info.video:
             self.generation = self.decoder.request(self.info, self.position, self.playing)
             self._update_time()
 
@@ -357,6 +559,8 @@ class PreviewPanel(QWidget):
         if not self.info or not self.play.isEnabled():
             return
         self.seek_timer.stop()
+        if self.playing and self.audio_only:
+            self.position = min(self.info.duration, self.audio.position())
         self.playing = not self.playing
         if self.playing and self.position >= self.info.duration - 0.15:
             self.position = 0
@@ -381,6 +585,7 @@ class PreviewPanel(QWidget):
         self.playing = False
         self._update_play_button()
         self.generation = self.decoder.request(None)
+        self.audio.stop()
 
     def _seek_changed(self, value):
         if not self.seek.isEnabled() or not self.info:
@@ -405,6 +610,9 @@ class PreviewPanel(QWidget):
             self.seek.blockSignals(False)
 
     def _poll(self):
+        if self.audio_only and self.playing:
+            self._poll_audio()
+            return
         latest, status = self.decoder.poll()
         if latest and latest[0] == self.generation:
             image = QImage.fromData(latest[1], "JPEG")
@@ -420,8 +628,22 @@ class PreviewPanel(QWidget):
             if status[1] == "error":
                 self.canvas.set_message(status[2])
 
+    def _poll_audio(self):
+        if self.audio.error or self.audio.finished:
+            self.playing = False
+            self._update_play_button()
+            if self.audio.error:
+                self.details.setText(self.audio.error)
+            else:
+                self.position = self.info.duration
+        else:
+            self.position = min(self.info.duration, self.audio.position())
+        self._update_time()
+
     def pause(self):
         if self.playing:
+            if self.audio_only:
+                self.position = min(self.info.duration, self.audio.position())
             self.playing = False
             self._update_play_button()
             self._request_frame()
@@ -431,3 +653,4 @@ class PreviewPanel(QWidget):
         self.seek_timer.stop()
         self.timer.stop()
         self.decoder.stop()
+        self.audio.stop()

@@ -6,7 +6,7 @@ Appen kombinerer en enkel mediekø med et vennlig uttrykk inspirert av [Vestfold
 - Fra [fargepaletten](https://www.vestfoldfylke.no/no/Designmanual/meny/Visuell-verktoykasse/farger/) brukes blant annet lyse Strand-toner, Vann og Nype til små elementer og bakgrunner. Utvalget i køen har en svak rosa flate og tydelig rød sidemarkering.
 - Den røde konverteringsknappen og små gule markeringer beholdes fra brukerens ønskede retning. Gult brukes mer sparsomt enn i første fargeutkast.
 - Nunito beholdes som avtalt. Fonten er også del av manualens [typografiske profil](https://www.vestfoldfylke.no/no/Designmanual/meny/Visuell-verktoykasse/typografi/).
-- Brukerens originale våpenskjold beholder farger og proporsjoner. Ingen tagline legges til.
+- Brukerens eget programikon (skjold med avspillingsknapp) beholder farger og proporsjoner. Ingen tagline legges til.
 
 Lys og mørk modus har samme hierarki. Forhåndsvisning, filvalg og eksport skal være lette å finne; dekor står aldri over kontroller eller tekst. Skjermbilder kan gjenskapes med `uv run --frozen --offline python scripts/preview.py`.
 

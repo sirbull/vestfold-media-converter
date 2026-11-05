@@ -8,7 +8,7 @@ import pytest
 
 from vestfold_converter.models import Cancelled, MediaError
 from vestfold_converter.process import CREATE_FLAGS
-from vestfold_converter.profiles import default_settings, preset_settings
+from vestfold_converter.profiles import AUDIO_PRESETS, default_settings, preset_settings
 from vestfold_converter.storage import long_path
 
 pytestmark = pytest.mark.integration
@@ -57,7 +57,7 @@ def test_advanced_audio(engine, media, tmp_path, container, codec):
     assert engine.analyze(output).audio
 
 
-@pytest.mark.parametrize("profile", ["small", "quality", "prores"])
+@pytest.mark.parametrize("profile", ["small", "quality", "webm", "prores"])
 def test_advanced_profiles(engine, media, tmp_path, profile):
     info = engine.analyze(media["mts"])
     settings = preset_settings(profile, info)
@@ -67,9 +67,17 @@ def test_advanced_profiles(engine, media, tmp_path, profile):
 
 def test_copy_and_extract_audio(engine, media, tmp_path):
     info = engine.analyze(media["mp4"])
-    for key in ("copy", "audio"):
+    for key in ("copy", "audio", "audio_wav"):
         output = engine.convert(info, preset_settings(key, info), tmp_path, threading.Event())
         assert engine.analyze(output).audio
+
+
+@pytest.mark.parametrize("profile", AUDIO_PRESETS)
+def test_audio_profiles(engine, media, tmp_path, profile):
+    info = engine.analyze(media["wav"])
+    output = engine.convert(info, preset_settings(profile, info), tmp_path, threading.Event())
+    result = engine.analyze(output)
+    assert result.audio and not result.video
 
 
 def test_interlaced_and_tracks(engine, media, tmp_path):

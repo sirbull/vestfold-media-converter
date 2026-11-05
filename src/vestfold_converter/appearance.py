@@ -62,18 +62,27 @@ class CrestBadge(QWidget):
     def __init__(self):
         super().__init__()
         self.setFixedSize(64, 64)
-        self.setAccessibleName("Vestfold fylkeskommunes våpenskjold")
-        self.renderer = QSvgRenderer(str(asset_path("vestfold-vapen.svg")), self)
+        self.setAccessibleName("Vestfold Media Converter-ikon")
+        self.renderer = QSvgRenderer(str(asset_path("vmc-ikon.svg")), self)
         if not self.renderer.isValid():
-            raise RuntimeError("Kunne ikke laste Vestfold-logoen fra programmets assets-mappe.")
+            raise RuntimeError("Kunne ikke laste programikonet fra programmets assets-mappe.")
+        self.framed = False
+
+    def set_colors(self, colors):
+        # I lyst tema står ikonet rett på bakgrunnen; i mørkt tema gir flaten kontrast.
+        self.framed = colors["background"] == DARK["background"]
+        self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QPen(QColor("#b9bcb2"), 1))
-        painter.setBrush(QColor("#f5f5ef"))
-        painter.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 10, 10)
-        size = min(self.width(), self.height()) * 46 / 64
+        if self.framed:
+            painter.setPen(QPen(QColor("#b9bcb2"), 1))
+            painter.setBrush(QColor("#f5f5ef"))
+            side = min(self.width(), self.height()) - 1
+            painter.drawEllipse(QRectF((self.width() - side) / 2, (self.height() - side) / 2, side, side))
+        # Skjoldets øvre hjørner må holde seg innenfor sirkelen; uten ramme får ikonet hele plassen.
+        size = min(self.width(), self.height()) * (40 / 64 if self.framed else 60 / 64)
         self.renderer.render(
             painter, QRectF((self.width() - size) / 2, (self.height() - size) / 2, size, size)
         )
@@ -101,14 +110,11 @@ class ProfileMotif(QWidget):
         painter.setBrush(QColor(self.colors["nav"]))
         painter.drawRect(QRectF(36, 3, 26, 26))
         painter.setBrush(QColor(self.colors["motif_sand"]))
-        shape = QPainterPath()
-        shape.moveTo(70, 3)
-        shape.lineTo(96, 3)
-        shape.lineTo(96, 16)
-        shape.cubicTo(96, 24, 90, 29, 83, 29)
-        shape.cubicTo(76, 29, 70, 24, 70, 16)
-        shape.closeSubpath()
-        painter.drawPath(shape)
+        # Dråpeform: en sirkel med ett spisst hjørne øverst til høyre.
+        circle, corner = QPainterPath(), QPainterPath()
+        circle.addEllipse(QRectF(70, 3, 26, 26))
+        corner.addRect(QRectF(83, 3, 13, 13))
+        painter.drawPath(circle.united(corner))
 
 
 class ImportArtwork(QWidget):
@@ -180,7 +186,8 @@ class RoundedComboBox(QComboBox):
         super().showPopup()
         popup = self.view().window()
         shape = QPainterPath()
-        shape.addRoundedRect(QRectF(popup.rect()), 10, 10)
+        # Litt mindre radius enn feltet, så feltets fokuskant ikke stikker frem i hjørnene.
+        shape.addRoundedRect(QRectF(popup.rect()), 8, 8)
         popup.setMask(QRegion(shape.toFillPolygon().toPolygon()))
 
 
@@ -641,7 +648,7 @@ class QueueDelegate(QStyledItemDelegate):
 def popup_stylesheet(c: dict) -> str:
     return f"""
         QFrame#comboPopup {{ background: {c["surface"]}; border: 1px solid {c["border"]};
-            border-radius: 10px; padding: 4px; }}
+            border-radius: 8px; padding: 4px; }}
         QListView#comboOptions {{ background: {c["surface"]}; color: {c["text"]}; border: 0;
             font-family: 'Nunito'; font-size: 10pt; outline: 0; padding: 4px;
             selection-background-color: {c["selected"]}; selection-color: {c["text"]}; }}
@@ -657,7 +664,11 @@ def stylesheet(c: dict) -> str:
     return f"""
         QWidget {{ font-family: 'Nunito'; font-size: 10pt; color: {c["text"]}; }}
         QMainWindow, QWidget#mainSurface {{ background: {c["background"]}; }}
-        QDialog#importBrowser {{ background: {c["background"]}; }}
+        QDialog#importBrowser, QDialog#fileDetails {{ background: {c["background"]}; }}
+        QScrollArea#detailsScroll, QScrollArea#detailsScroll > QWidget, QWidget#detailsContent {{ background: transparent; border: 0; }}
+        QFrame#detailCard {{ background: {c["surface"]}; border: 1px solid {c["border"]}; border-radius: 8px; }}
+        QLabel#detailKey {{ color: {c["muted"]}; min-width: 130px; }}
+        QLabel#detailError {{ color: {c["accent"]}; font-weight: 600; }}
         QDialog#importBrowser QTreeView, QDialog#importBrowser QListView {{
             background: {c["surface"]}; color: {c["text"]}; border: 1px solid {c["border"]};
             border-radius: 8px; selection-background-color: {c["selected"]};
@@ -675,10 +686,16 @@ def stylesheet(c: dict) -> str:
         QFrame#browserPane {{ background: {c["surface"]}; border: 1px solid {c["border"]};
             border-radius: 8px; }}
         QFrame#browserPane QTreeView, QFrame#browserPane QListView {{ border: 0; }}
-        QLineEdit#browserSearch {{ padding: 4px 6px; min-height: 18px; max-height: 18px; }}
+        QFrame#browserPane QHeaderView::section {{ padding: 5px 10px; border-radius: 0; }}
+        QFrame#searchOptions QComboBox {{ padding: 4px 30px 4px 10px; min-height: 18px; border-width: 1px; }}
+        QFrame#searchOptions QLineEdit, QFrame#searchOptions QAbstractSpinBox {{ background: {c["surface"]};
+            border: 1px solid {c["border"]}; border-radius: 7px; padding: 4px 6px; min-height: 18px; }}
+        QFrame#searchOptions QAbstractSpinBox:focus {{ border-color: {c["accent"]}; }}
+        QPushButton#scopeButton {{ padding: 4px 12px; min-height: 18px; border-radius: 13px; }}
+        QLineEdit#browserSearch {{ padding: 4px 6px; min-height: 18px; max-height: 18px; margin: 1px; }}
         QLineEdit#browserSearch:focus {{ border: 1px solid {c["accent"]}; }}
         QPushButton#browserViewButton {{ padding: 0; min-height: 26px; max-height: 26px;
-            min-width: 26px; max-width: 26px;
+            min-width: 26px; max-width: 26px; margin: 1px;
             qproperty-checkedIconColor: "{c["yellow_text"]}"; }}
         QDialog#importBrowser QPushButton#browserViewButton:focus {{
             border: 1px solid {c["accent"]}; }}
@@ -715,7 +732,8 @@ def stylesheet(c: dict) -> str:
             border-radius: 7px; padding: 0; min-height: 30px; min-width: 34px; }}
         QToolButton#themeOption:hover {{ background: {c["hover"]}; }}
         QToolButton#themeOption:checked {{ background: {c["yellow"]}; border-color: {c["yellow"]}; }}
-        QToolButton#themeOption:focus {{ border: 2px solid {c["accent"]}; }}
+        /* Bare valgt modus markeres, med gult. Ingen fokusramme. */
+        QToolButton#themeOption:focus {{ border: 1px solid transparent; }}
         QPushButton, QToolButton {{ background: {c["surface"]}; border: 1px solid {c["border"]};
             border-radius: 8px; padding: 9px 13px; min-height: 18px; }}
         QPushButton:hover, QToolButton:hover {{ background: {c["hover"]}; border-color: {c["accent"]}; }}
@@ -758,9 +776,17 @@ def stylesheet(c: dict) -> str:
         QTableWidget::item:focus {{ border: 1px solid {c["accent"]}; }}
         QHeaderView::section {{ background: {c["raised"]}; color: {c["muted"]}; padding: 11px 14px;
             border: 0; border-bottom: 1px solid {c["border"]}; text-align: left; font-size: 9pt; font-weight: 600; }}
+        QHeaderView {{ background: transparent; }}
+        QHeaderView::section:first {{ border-top-left-radius: 7px; }}
+        QHeaderView::section:last {{ border-top-right-radius: 7px; }}
+        QHeaderView::section:hover {{ color: {c["text"]}; }}
         QScrollArea#settingsCard > QWidget > QWidget, QWidget#settingsPanel {{ background: {c["surface"]}; }}
-        QScrollArea#inspectorScroll {{ background: {c["surface"]}; border: 0; }}
-        QScrollArea#inspectorScroll > QWidget > QWidget, QWidget#previewPanel {{ background: {c["surface"]}; }}
+        /* Fanepanelet tegner flaten; firkantet innhold ville dekket de runde hjørnene. */
+        QWidget#previewPanel {{ background: {c["surface"]}; }}
+        QScrollArea#inspectorScroll, QScrollArea#inspectorScroll > QWidget,
+        QScrollArea#inspectorScroll > QWidget > QWidget,
+        QScrollArea#inspectorScroll QWidget#settingsPanel, QScrollArea#inspectorScroll QWidget#previewPanel {{
+            background: transparent; border: 0; }}
         QTabWidget#inspector::pane {{ background: {c["surface"]}; border: 1px solid {c["border"]}; border-radius: 10px; }}
         QTabBar::tab {{ background: transparent; color: {c["muted"]}; padding: 10px 12px;
             border: 0; border-bottom: 2px solid transparent; }}
@@ -788,6 +814,11 @@ def stylesheet(c: dict) -> str:
         QScrollBar::handle:vertical {{ background: {c["border"]}; border-radius: 4px; min-height: 32px; }}
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
         QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
+        QScrollBar:horizontal {{ background: transparent; height: 10px; margin: 2px; }}
+        QScrollBar::handle:horizontal {{ background: {c["border"]}; border-radius: 4px; min-width: 32px; }}
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
+        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: transparent; }}
+        QAbstractScrollArea::corner {{ background: transparent; }}
         QToolTip {{ background: {c["surface"]}; color: {c["text"]}; border: 1px solid {c["border"]}; padding: 5px; }}
         QMainWindow[compact="true"] QLabel#title {{ font-size: 18pt; }}
         QMainWindow[compact="true"] QLabel#sectionTitle {{ font-size: 12pt; }}
@@ -796,4 +827,8 @@ def stylesheet(c: dict) -> str:
             padding: 7px 10px; min-height: 16px; }}
         QMainWindow[compact="true"] QPushButton#primary {{ font-size: 11pt; padding: 7px 18px; min-height: 18px; }}
         QMainWindow[compact="true"] QPushButton#dropArea {{ min-height: 120px; }}
+        /* Qt sizes the clear button to the icon; button padding would push it off-centre. */
+        QLineEdit QToolButton, QLineEdit QToolButton:hover, QLineEdit QToolButton:focus,
+        QMainWindow[compact="true"] QLineEdit QToolButton {{
+            background: transparent; border: 0; padding: 0; margin: 0; min-height: 0; min-width: 0; }}
     """

@@ -80,42 +80,112 @@ CONTAINERS = {
 }
 VIDEO_CONTAINERS = ("mp4", "mov", "mkv", "webm", "avi")
 AUDIO_CONTAINERS = ("mp3", "wav", "flac", "m4a", "opus", "ogg", "aiff", "alac")
+VIDEO_PRESETS = ("standard", "h264", "small", "quality", "webm", "prores", "copy", "audio", "audio_wav")
+AUDIO_PRESETS = ("standard", "aac", "flac", "ogg", "opus", "alac", "wav", "wav24", "aiff")
 DESCRIPTIONS = {
     "standard": "Bred kompatibilitet. Original oppløsning og bildefrekvens beholdes.",
+    "standard_hevc": "H.265 for 4K og større. Mindre filer enn H.264 med samme kvalitet.",
+    "standard_audio": "MP3 med 192 kbit/s. Spilles av nesten overalt.",
+    "h264": "H.264 spilles av på nesten alt, men gir større filer i 4K.",
     "copy": "Kopierer kompatibel video uten kvalitetstap. Lyd konverteres til AAC når det er nødvendig.",
     "small": "H.265 gir ofte mindre filer, men tar lengre tid og kan kreve mer ved redigering.",
-    "quality": "H.264 med høyere kvalitet. Gir vanligvis en større fil.",
+    "quality": "Lavere komprimering for høyere kvalitet. Gir vanligvis en større fil.",
+    "webm": "VP9 og Opus i WebM for nettsider. Tar lengre tid å konvertere.",
     "prores": "ProRes 422 i MOV for redigering. Krever mye diskplass.",
-    "audio": "Lagrer bare det valgte lydsporet. Ingen video følger med.",
+    "audio": "Lagrer bare det valgte lydsporet som MP3. Ingen video følger med.",
+    "audio_wav": "Lagrer bare det valgte lydsporet som ukomprimert WAV for redigering.",
+    "aac": "AAC i M4A. God kvalitet og liten fil, passer for Apple og mobil.",
+    "flac": "Tapsfri komprimering. Mindre enn WAV, uten kvalitetstap.",
+    "ogg": "Vorbis i OGG. Åpent format med god kvalitet.",
+    "opus": "Opus gir svært god kvalitet ved lav bitrate. Passer for tale og nett.",
+    "alac": "Apple Lossless i M4A. Tapsfri, passer for Apple-enheter.",
+    "wav": "Ukomprimert PCM, 16-bit. Stor fil, passer for redigering.",
+    "wav24": "Ukomprimert PCM, 24-bit. Mer dynamikk for lydredigering.",
+    "aiff": "Ukomprimert PCM, 16-bit, i AIFF for Apple-programmer.",
 }
 
 
+def is_4k(info: MediaInfo) -> bool:
+    return bool(info.video) and max(info.video.width, info.video.height) >= 3840
+
+
 def default_settings(info: MediaInfo) -> ExportSettings:
+    if is_4k(info):
+        return ExportSettings(name="MP4 · H.265 – Anbefalt", video_codec="libx265", quality=24)
     if info.video:
-        return ExportSettings()
+        return ExportSettings(name="MP4 · H.264 – Anbefalt")
     return ExportSettings(name="MP3 – Anbefalt", container="mp3", video_codec=None, audio_codec="libmp3lame")
+
+
+def preset_keys(info: MediaInfo) -> tuple[str, ...]:
+    if not info.video:
+        return AUDIO_PRESETS
+    # Den anbefalte kodeken vises bare én gang.
+    return tuple(k for k in VIDEO_PRESETS if k != ("small" if is_4k(info) else "h264"))
+
+
+def preset_description(key: str, info: MediaInfo) -> str:
+    if key == "standard":
+        key = "standard_hevc" if is_4k(info) else "standard" if info.video else "standard_audio"
+    return DESCRIPTIONS.get(key, "Egne innstillinger for valgte filer.")
+
+
+def _audio_only(name, container, codec, **changes) -> ExportSettings:
+    return ExportSettings(name=name, container=container, video_codec=None, audio_codec=codec, **changes)
+
+
+AUDIO_ONLY = {
+    "aac": lambda: _audio_only("M4A · AAC", "m4a", "aac"),
+    "flac": lambda: _audio_only("FLAC · tapsfri", "flac", "flac", bit_depth=24),
+    "ogg": lambda: _audio_only("OGG · Vorbis", "ogg", "libvorbis"),
+    "opus": lambda: _audio_only("Opus", "opus", "libopus", audio_bitrate=128),
+    "alac": lambda: _audio_only("M4A · ALAC tapsfri", "alac", "alac", bit_depth=24),
+    "wav": lambda: _audio_only("WAV · 16-bit", "wav", "pcm_s16le"),
+    "wav24": lambda: _audio_only("WAV · 24-bit", "wav", "pcm_s24le", bit_depth=24),
+    "aiff": lambda: _audio_only("AIFF · 16-bit", "aiff", "pcm_s16be"),
+}
 
 
 def preset_settings(key: str, info: MediaInfo) -> ExportSettings:
     base = default_settings(info)
     if key == "standard":
         return base
-    if key == "audio":
+    if key in {"audio", "audio_wav", *AUDIO_ONLY}:
         if not info.audio:
             raise MediaError("Kilden har ikke lydspor.")
-        return ExportSettings(
-            name="Kun lyd · MP3", container="mp3", video_codec=None, audio_codec="libmp3lame"
-        )
+        if key == "audio":
+            return _audio_only("Kun lyd · MP3", "mp3", "libmp3lame")
+        if key == "audio_wav":
+            return _audio_only("Kun lyd · WAV", "wav", "pcm_s16le")
+        return AUDIO_ONLY[key]()
     if not info.video:
         raise MediaError("Denne profilen krever video.")
+    if key == "h264":
+        return replace(base, name="MP4 · H.264", video_codec="libx264", quality=21)
     if key == "small":
-        return replace(base, name="Mindre fil (H.265)", video_codec="libx265", quality=26)
+        return replace(base, name="MP4 · H.265 – mindre fil", video_codec="libx265", quality=26)
     if key == "quality":
-        return replace(base, name="Høy kvalitet", quality=17, preset="slow")
+        codec = "H.265" if base.video_codec == "libx265" else "H.264"
+        return replace(
+            base,
+            name=f"MP4 · {codec} – høy kvalitet",
+            quality=20 if codec == "H.265" else 17,
+            preset="slow",
+        )
+    if key == "webm":
+        return replace(
+            base,
+            name="WebM · VP9",
+            container="webm",
+            video_codec="libvpx-vp9",
+            audio_codec="libopus",
+            quality=32,
+            audio_bitrate=128,
+        )
     if key == "prores":
         return replace(
             base,
-            name="Redigeringsformat (ProRes)",
+            name="MOV · ProRes 422 – redigering",
             container="mov",
             video_codec="prores_ks",
             audio_codec="pcm_s24le",

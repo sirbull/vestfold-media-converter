@@ -16,6 +16,6 @@ a = Analysis([str(root / 'scripts/entrypoint.py')], pathex=[str(root / 'src')],
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='VestfoldMediaConverter',
           debug=False, strip=False, upx=False, console=False,
-          manifest=str(root / 'scripts/windows.manifest'))
+          icon=str(root / 'build' / 'vmc-ikon.ico'), manifest=str(root / 'scripts/windows.manifest'))
 coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='VestfoldMediaConverter')
 

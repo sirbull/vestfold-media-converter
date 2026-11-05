@@ -51,6 +51,51 @@ def prepare_licenses():
     return folder
 
 
+def prepare_icon(sizes=(16, 20, 24, 32, 40, 48, 64, 128, 256)):
+    """Lag EXE-ikonet fra appens SVG. ICO-filen består av PNG-bilder i hver størrelse."""
+    import struct
+
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRectF, Qt
+    from PySide6.QtGui import QGuiApplication, QImage, QPainter
+    from PySide6.QtSvg import QSvgRenderer
+
+    app = QGuiApplication.instance() or QGuiApplication(["distribution", "-platform", "offscreen"])
+    renderer = QSvgRenderer(str(ROOT / "src/vestfold_converter/assets/vmc-ikon.svg"))
+    if not renderer.isValid():
+        raise RuntimeError("Kunne ikke lese vmc-ikon.svg.")
+    images = []
+    for size in sizes:
+        image = QImage(size, size, QImage.Format.Format_ARGB32)
+        image.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        target = renderer.viewBoxF().size().scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio)
+        renderer.render(
+            painter,
+            QRectF(
+                (size - target.width()) / 2, (size - target.height()) / 2, target.width(), target.height()
+            ),
+        )
+        painter.end()
+        data = QByteArray()
+        buffer = QBuffer(data)
+        buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+        image.save(buffer, "PNG")
+        images.append((size, bytes(data)))
+    del app
+    header = struct.pack("<HHH", 0, 1, len(images))
+    offset = len(header) + 16 * len(images)
+    entries, payload = b"", b""
+    for size, png in images:
+        entries += struct.pack("<BBBBHHII", size % 256, size % 256, 0, 0, 1, 32, len(png), offset)
+        offset += len(png)
+        payload += png
+    target = ROOT / "build" / "vmc-ikon.ico"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(header + entries + payload)
+    return target
+
+
 def audit(folder: Path):
     ffmpeg = folder / "_internal" / "vendor" / "ffmpeg" / "bin" / "ffmpeg.exe"
 
@@ -124,5 +169,6 @@ if __name__ == "__main__":
     options = parser.parse_args()
     if options.prepare:
         prepare_licenses()
+        prepare_icon()
     if options.audit:
         audit(options.audit.resolve())

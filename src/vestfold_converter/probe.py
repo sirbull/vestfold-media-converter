@@ -16,6 +16,15 @@ def _number(value, default=0.0):
         return default
 
 
+def _rate(value):
+    numerator, _, denominator = str(value or "").partition("/")
+    return _number(numerator) / _number(denominator, 1.0) if _number(denominator, 1.0) else 0.0
+
+
+def _tags(raw):
+    return tuple((str(key), str(value)) for key, value in (raw or {}).items() if str(value).strip())
+
+
 def parse_probe(path: Path, data: dict) -> MediaInfo:
     streams = []
     for raw in data.get("streams", []):
@@ -40,6 +49,14 @@ def parse_probe(path: Path, data: dict) -> MediaInfo:
                 color_transfer=raw.get("color_transfer", "unknown"),
                 color_primaries=raw.get("color_primaries", "unknown"),
                 color_range=raw.get("color_range", "unknown"),
+                codec_long=raw.get("codec_long_name", ""),
+                profile=raw.get("profile", ""),
+                bit_rate=int(_number(raw.get("bit_rate"))),
+                frame_rate=_rate(raw.get("avg_frame_rate")) or _rate(raw.get("r_frame_rate")),
+                bit_depth=int(_number(raw.get("bits_per_raw_sample")) or _number(raw.get("bits_per_sample"))),
+                channel_layout=raw.get("channel_layout", ""),
+                display_aspect=raw.get("display_aspect_ratio", ""),
+                tags=_tags(tags),
             )
         )
     fmt = data.get("format", {})
@@ -52,6 +69,9 @@ def parse_probe(path: Path, data: dict) -> MediaInfo:
         path.stat().st_size,
         fmt.get("format_name", "ukjent"),
         tuple(streams),
+        format_long=fmt.get("format_long_name", ""),
+        bit_rate=int(_number(fmt.get("bit_rate"))),
+        tags=_tags(fmt.get("tags")),
     )
     if not info.video and not info.audio:
         raise MediaError("Filen inneholder ingen støttede lyd- eller videostrømmer.")

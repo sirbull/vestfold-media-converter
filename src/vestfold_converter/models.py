@@ -29,6 +29,14 @@ class Stream:
     color_transfer: str = "unknown"
     color_primaries: str = "unknown"
     color_range: str = "unknown"
+    codec_long: str = ""
+    profile: str = ""
+    bit_rate: int = 0
+    frame_rate: float = 0.0
+    bit_depth: int = 0
+    channel_layout: str = ""
+    display_aspect: str = ""
+    tags: tuple[tuple[str, str], ...] = ()
 
     @property
     def hdr(self) -> bool:
@@ -42,6 +50,9 @@ class MediaInfo:
     size: int
     format_name: str
     streams: tuple[Stream, ...]
+    format_long: str = ""
+    bit_rate: int = 0
+    tags: tuple[tuple[str, str], ...] = ()
 
     @property
     def video(self) -> Stream | None:
@@ -64,7 +75,7 @@ class MediaInfo:
 
 @dataclass(frozen=True)
 class ExportSettings:
-    name: str = "MP4 – Anbefalt"
+    name: str = "MP4 · H.264 – Anbefalt"
     container: str = "mp4"
     video_codec: str | None = "libx264"
     audio_codec: str = "aac"

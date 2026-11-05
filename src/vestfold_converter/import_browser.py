@@ -35,6 +35,7 @@ from .background import LatestRequest
 from .models import MediaError, QueueItem
 from .path_bar import PathBar
 from .preview import PreviewPanel
+from .search_options import SearchOptions
 from .system_places import explorer_places
 from .windows_search import MEDIA_FILTERS, windows_search
 
@@ -78,7 +79,10 @@ class ImportBrowser(QDialog):
         self._probe_generation = 0
         self.probe = SelectionProbe(engine)
         self.searcher = LatestRequest(
-            lambda request, cancel: search_loader(request[0], cancel, all_files=request[1]), "Windows-søk"
+            lambda request, cancel: search_loader(
+                request[0], cancel, all_files=request[1], scope=request[2], criteria=request[3]
+            ),
+            "Windows-søk",
         )
         self.is_search = False
         self._search_generation = 0
@@ -109,8 +113,8 @@ class ImportBrowser(QDialog):
         self.search_input = QLineEdit()
         self.search_input.setObjectName("browserSearch")
         self.search_input.setAccessibleName("Søk etter filnavn med Windows Search")
-        self.search_input.setPlaceholderText("Søk filnavn i Windows …")
-        self.search_input.setToolTip("Søk på hele maskinen i filene som Windows har indeksert")
+        self.search_input.setPlaceholderText("Søk filnavn …")
+        self.search_input.setToolTip("Søk i mappen du står i, med undermapper. Bare indekserte filer vises.")
         self.search_input.setMinimumWidth(80)
         self.search_input.setMaxLength(200)
         self.search_input.setClearButtonEnabled(True)
@@ -158,11 +162,12 @@ class ImportBrowser(QDialog):
         self.file_pane = QFrame()
         self.file_pane.setObjectName("browserPane")
         file_layout = QVBoxLayout(self.file_pane)
-        file_layout.setContentsMargins(8, 8, 8, 8)
+        # Listen går helt ut til rammen; litt luft nederst holder de runde hjørnene synlige.
+        file_layout.setContentsMargins(0, 8, 0, 6)
         file_layout.setSpacing(8)
         self.file_toolbar = QWidget()
         file_tools = QHBoxLayout(self.file_toolbar)
-        file_tools.setContentsMargins(0, 0, 0, 0)
+        file_tools.setContentsMargins(8, 0, 8, 0)
         file_tools.setSpacing(6)
         file_tools.addWidget(self.search_input, 1)
         self.search_button = IconButton("search", "Søk etter filnavn med Windows Search")
@@ -182,6 +187,10 @@ class ImportBrowser(QDialog):
             self.view_buttons[mode] = button
             file_tools.addWidget(button)
         file_layout.addWidget(self.file_toolbar)
+        self.search_options = SearchOptions(getattr(parent, "colors", None))
+        self.search_options.hide()
+        self.search_options.changed.connect(lambda: self.search_timer.start())
+        file_layout.addWidget(self.search_options)
         file_layout.addWidget(self.stack, 1)
         self.list_view = QTreeView()
         self.list_view.setObjectName("browserFiles")
@@ -228,9 +237,6 @@ class ImportBrowser(QDialog):
         self.places_status.setObjectName("muted")
         self.places_status.setWordWrap(True)
         layout.addWidget(self.places_status)
-        self.path_bar = PathBar()
-        self.path_bar.folderClicked.connect(self.navigate)
-        layout.addWidget(self.path_bar)
         footer = QHBoxLayout()
         self.all_files = self._button("Vis alle filtyper", footer, self._toggle_filter)
         self.all_files.setCheckable(True)
@@ -247,6 +253,11 @@ class ImportBrowser(QDialog):
         self.debounce.setSingleShot(True)
         self.debounce.setInterval(180)
         self.debounce.timeout.connect(self._start_probe)
+        # Endringer i søkekriteriene oppdaterer treffene etter en kort pause, som i Finder.
+        self.search_timer = QTimer(self)
+        self.search_timer.setSingleShot(True)
+        self.search_timer.setInterval(400)
+        self.search_timer.timeout.connect(self._run_search)
         self.poll = QTimer(self)
         self.poll.setInterval(60)
         self.poll.timeout.connect(self._poll)
@@ -382,22 +393,41 @@ class ImportBrowser(QDialog):
             if self.is_search:
                 self.navigate(self.current_directory)
             return
+        if not self.is_search:
+            # Valg av sted og kriterier vises først når man har søkt.
+            self.search_options.reset()
+            self.search_options.set_folder(self.current_directory)
+            self.search_options.show()
         self.is_search = True
         self._search_query = text
         self._use_model(self.search_model)
-        self.search_model.removeRows(0, self.search_model.rowCount())
-        self.selection.clear()
-        self._clear_preview("Søker etter filer …")
         self.reveal_folder.show()
         for view in (self.list_view, self.grid_view):
             view.setRootIndex(QModelIndex())
-        self.location.setText("Søker i Windows-indeksen …")
-        self.location.setToolTip("Søket omfatter bare filene Windows har indeksert på maskinen")
-        self._search_generation = self.searcher.request((text, self.all_files.isChecked()))
+        self._run_search()
+
+    def _scope_text(self):
+        scope = self.search_options.scope()
+        return f"i {self.search_options.this_folder.text()}" if scope else "på denne PC-en"
+
+    def _run_search(self):
+        self.search_timer.stop()
+        if not self.is_search or self._closed:
+            return
+        self.search_model.removeRows(0, self.search_model.rowCount())
+        self.selection.clear()
+        self._clear_preview("Søker etter filer …")
+        self.location.setText(f"Søker {self._scope_text()} …")
+        self.location.setToolTip("Søket omfatter bare filene Windows har indeksert")
+        options = self.search_options
+        request = (self._search_query, self.all_files.isChecked(), options.scope(), options.criteria())
+        self._search_generation = self.searcher.request(request)
 
     def _show_search(self, matches, error):
         if error:
-            self.location.setText("Windows-søk er utilgjengelig. Prøv Utforsker …")
+            self.location.setText(
+                error if "for lang tid" in error else "Windows-søk er utilgjengelig. Prøv Utforsker …"
+            )
             self.location.setToolTip(error)
             self.preview.canvas.set_message("Kunne ikke søke. Du kan fortsatt bla i mappene.")
             return
@@ -411,11 +441,11 @@ class ImportBrowser(QDialog):
             self.search_model.appendRow([name, folder])
         count = len(matches.paths)
         self.location.setText(
-            f"Viser de første {count} treffene. Begrens søket."
+            f"Viser de første {count} treffene {self._scope_text()}. Begrens søket."
             if matches.limited
-            else f"{count} treff i Windows-indeksen"
+            else f"{count} treff {self._scope_text()}"
             if count
-            else "Ingen treff. Bare Windows-indekserte filer vises."
+            else f"Ingen treff {self._scope_text()}. Bare indekserte filer vises."
         )
         self.preview.canvas.set_message("Marker et søkeresultat for å se forhåndsvisning")
 
@@ -441,13 +471,16 @@ class ImportBrowser(QDialog):
         path = directory.absolutePath()
         self._search_generation = self.searcher.request()
         self.is_search = False
+        self.search_timer.stop()
         self.search_input.clear()
+        self.search_options.hide()
         self.reveal_folder.hide()
         self._use_model(self.model)
         self.selection.clear()
         self._clear_preview("Marker en fil for å se forhåndsvisning")
         self.current_directory = path
-        self.path_bar.set_path(path)
+        name = Path(path).name or path.rstrip("\\/")
+        self.search_input.setPlaceholderText(f"Søk i «{name}» …")
         index = self.model.index(path)
         for view in (self.list_view, self.grid_view):
             view.setRootIndex(index)
@@ -494,7 +527,7 @@ class ImportBrowser(QDialog):
     def _toggle_filter(self):
         self.model.setNameFilters([] if self.all_files.isChecked() else MEDIA_FILTERS)
         if self.is_search:
-            self.start_search()
+            self._run_search()
 
     def _activate(self, index):
         path = self._index_path(index)
@@ -535,19 +568,11 @@ class ImportBrowser(QDialog):
         self.preview.show_item(None)
         self.preview.canvas.set_message(message)
         self.preview.filename.setText("Forhåndsvisning")
-        if hasattr(self, "current_directory"):
-            self.path_bar.set_path(self.current_directory)
 
     def _current_changed(self, current, previous):
         if self._closed:
             return
         self._clear_preview("Marker en fil for å se forhåndsvisning")
-        if current.isValid():
-            path = self._index_path(current)
-            self.path_bar.set_path(
-                path if self._index_is_dir(current) else path.parent,
-                "" if self._index_is_dir(current) else path.name,
-            )
         if current.isValid() and not self._index_is_dir(current):
             self._probe_path = self._index_path(current)
             self.preview.filename.setText(self._probe_path.name)
@@ -603,6 +628,7 @@ class ImportBrowser(QDialog):
         if not self._closed:
             self._closed = True
             self.debounce.stop()
+            self.search_timer.stop()
             self.poll.stop()
             self._places_cancel.set()
             self.probe.stop()

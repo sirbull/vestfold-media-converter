@@ -5,7 +5,13 @@ import pytest
 from PySide6.QtCore import Qt
 
 from vestfold_converter.models import QueueItem
-from vestfold_converter.preview import PreviewPanel
+from vestfold_converter.preview import (
+    AUDIO_FRAME_BYTES,
+    AUDIO_RATE,
+    AudioPlayer,
+    PreviewPanel,
+    audio_preview_command,
+)
 from vestfold_converter.process import CREATE_FLAGS
 from vestfold_converter.ui import MainWindow
 
@@ -95,13 +101,65 @@ def test_switching_to_audio_clears_video_and_cancels_decoder(qtbot, engine, medi
         panel.toggle_play()
         panel.show_item(QueueItem(media["wav"], info=engine.analyze(media["wav"])))
         assert panel.canvas.image.isNull()
-        assert not panel.play.isEnabled()
-        assert not panel.skip_back.isEnabled()
-        assert not panel.skip_forward.isEnabled()
+        assert not panel.canvas.isVisible()
         assert not panel.playing
         qtbot.wait(300)
         assert panel.canvas.image.isNull()
-        assert "Lydfil" in panel.canvas.message
+        # Lydfiler har bare tidslinje og avspillingsknapper.
+        for control in (panel.play, panel.seek, panel.skip_back, panel.skip_forward):
+            assert control.isVisible() and control.isEnabled()
+        panel.show_item(QueueItem(media["mp4"], info=engine.analyze(media["mp4"])))
+        assert panel.canvas.isVisible()
+    finally:
+        panel.shutdown()
+
+
+class SilentOutput:
+    """Erstatter lydkortet: tar imot PCM og later som hver buffer spilles med en gang."""
+
+    def __init__(self, received):
+        self.received = received
+        self.played = 0
+
+    def write(self, data):
+        self.received.append(len(data))
+        self.played += len(data)
+
+    def pending(self):
+        return 0
+
+    def played_seconds(self):
+        return self.played / (AUDIO_RATE * AUDIO_FRAME_BYTES)
+
+    def close(self):
+        pass
+
+
+def test_audio_preview_plays_pauses_seeks_and_finishes(qtbot, engine, media):
+    received = []
+    panel = PreviewPanel(engine.ffmpeg)
+    panel.audio = AudioPlayer(engine.ffmpeg, output=lambda: SilentOutput(received))
+    qtbot.addWidget(panel)
+    panel.show()
+    info = engine.analyze(media["wav"])
+    panel.show_item(QueueItem(media["wav"], info=info))
+    try:
+        assert audio_preview_command(engine.ffmpeg, info, 0.25)[-6:] == [
+            "48000", "-c:a", "pcm_s16le", "-f", "s16le", "pipe:1",
+        ]  # fmt: skip
+        qtbot.mouseClick(panel.play, Qt.MouseButton.LeftButton)
+        assert panel.playing
+        qtbot.waitUntil(lambda: not panel.playing, timeout=10000)
+        assert panel.position == pytest.approx(info.duration, abs=0.05)
+        assert sum(received) / (AUDIO_RATE * AUDIO_FRAME_BYTES) == pytest.approx(info.duration, abs=0.05)
+        assert panel.time.text().startswith("00:00:00 / ")
+        # Ny avspilling fra slutten starter på nytt; søk midt i fortsetter derfra.
+        received.clear()
+        panel.seek.setValue(5000)
+        qtbot.waitUntil(lambda: panel.position == pytest.approx(info.duration / 2, abs=0.05), timeout=2000)
+        panel.toggle_play()
+        qtbot.waitUntil(lambda: not panel.playing, timeout=10000)
+        assert sum(received) / (AUDIO_RATE * AUDIO_FRAME_BYTES) == pytest.approx(info.duration / 2, abs=0.05)
     finally:
         panel.shutdown()
 
@@ -202,7 +260,10 @@ def test_folder_queue_selection_drives_side_preview(qtbot, engine, media, tmp_pa
     qtbot.waitUntil(lambda: not window.busy, timeout=30000)
     assert len(window.items) == 3
     assert window.inspector.isVisible()
-    assert window.inspector.currentIndex() == 0
+    # Eksportvalg er første fane og vises når filer blir valgt.
+    assert window.inspector.tabText(0) == "Eksportvalg"
+    assert window.inspector.currentWidget() is window.panel_scroll
+    window.inspector.setCurrentWidget(window.preview_scroll)
     wait_image(qtbot, window.preview)
     window.table.selectRow(1)
     assert window.preview.filename.text() == "b.mp4"
@@ -211,5 +272,7 @@ def test_folder_queue_selection_drives_side_preview(qtbot, engine, media, tmp_pa
     qtbot.waitUntil(lambda: window.table.isColumnHidden(1), timeout=1000)
     assert window.inspector.isVisible()
     window.table.selectRow(2)
-    assert not window.preview.play.isEnabled()
-    assert window.preview.canvas.image.isNull()
+    assert window.preview.play.isEnabled()
+    assert window.preview.canvas.isHidden()
+    # Brukerens fanevalg beholdes mens man bytter mellom valgte filer.
+    assert window.inspector.currentWidget() is window.preview_scroll

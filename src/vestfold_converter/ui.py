@@ -3,7 +3,7 @@ import threading
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, QThread, QTimer, QUrl, Signal
+from PySide6.QtCore import QItemSelectionModel, QSize, Qt, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
-    QMessageBox,
     QProgressBar,
     QPushButton,
     QScrollArea,
@@ -48,6 +47,7 @@ from .appearance import (
     line_icon,
     stylesheet,
 )
+from .details import FileDetailsDialog, duration_text, size_text
 from .engine import MediaEngine
 from .import_browser import ImportBrowser
 from .models import ExportSettings, MediaError, QueueItem
@@ -56,11 +56,12 @@ from .profiles import (
     AUDIO_CODECS,
     AUDIO_CONTAINERS,
     CONTAINERS,
-    DESCRIPTIONS,
     VIDEO_CODECS,
     VIDEO_CONTAINERS,
     audio_choices,
     pixel_choices,
+    preset_description,
+    preset_keys,
     preset_settings,
     validate,
     video_choices,
@@ -88,19 +89,6 @@ def choose(widget: QComboBox, value):
     index = widget.findData(value)
     if index >= 0:
         widget.setCurrentIndex(index)
-
-
-def duration_text(seconds):
-    seconds = int(seconds)
-    return f"{seconds // 3600:02}:{seconds // 60 % 60:02}:{seconds % 60:02}"
-
-
-def size_text(size):
-    for unit in ("B", "KB", "MB", "GB", "TB"):
-        if size < 1024:
-            return f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} PB"
 
 
 class DropArea(QPushButton):
@@ -313,28 +301,19 @@ class SettingsPanel(QWidget):
             "Endringer gjelder alle valgte filer." if len(ready) > 1 else self.info.kind
         )
         self.profile.clear()
-        self.profile.addItem("MP4 – Anbefalt" if self.info.video else "MP3 – Anbefalt", "standard")
-        if self.info.video:
-            for label, key in (
-                ("Rask konvertering (stream copy)", "copy"),
-                ("Mindre fil (H.265)", "small"),
-                ("Høy kvalitet", "quality"),
-                ("Redigeringsformat (ProRes)", "prores"),
-                ("Kun lyd fra video", "audio"),
-            ):
-                try:
-                    candidate = preset_settings(key, self.info)
+        for key in preset_keys(self.info):
+            try:
+                candidate = preset_settings(key, self.info)
+                if key != "standard":
                     validate(self.info, candidate, self.engine.encoders, self.engine.muxers)
-                    self.profile.addItem(label, key)
-                except MediaError:
-                    pass
+                self.profile.addItem(candidate.name, key)
+            except MediaError:
+                pass
         if item.settings.name not in {self.profile.itemText(i) for i in range(self.profile.count())}:
             self.profile.addItem(item.settings.name, "custom")
         index = self.profile.findText(item.settings.name)
         self.profile.setCurrentIndex(max(0, index))
-        self.description.setText(
-            DESCRIPTIONS.get(self.profile.currentData(), "Egne innstillinger for valgte filer.")
-        )
+        self.description.setText(preset_description(self.profile.currentData(), self.info))
         note = ""
         if self.info.video and not self.info.audio:
             note = "Kilden inneholder ikke et lydspor. Videoen konverteres uten lyd."
@@ -524,7 +503,7 @@ class MainWindow(QMainWindow):
         self._summary = None
         self._startup_positioned = False
         self.setWindowTitle("Vestfold Media Converter")
-        self.setWindowIcon(QIcon(str(asset_path("vestfold-vapen.svg"))))
+        self.setWindowIcon(QIcon(str(asset_path("vmc-ikon.svg"))))
         self.setMinimumSize(760, 500)
         self.setAcceptDrops(True)
         central = QWidget()
@@ -569,17 +548,15 @@ class MainWindow(QMainWindow):
         self.remove.setObjectName("quietButton")
         self.details = QPushButton("Detaljer")
         self.details.setObjectName("quietButton")
-        self.settings_toggle = QPushButton("Eksportvalg")
-        self.settings_toggle.setObjectName("quietButton")
-        self.settings_toggle.setAccessibleName("Åpne eksportinnstillinger for valgte filer")
         self._compact = False
         self._tight = False
         for button in (self.add_files, self.add_folder):
             toolbar.addWidget(button)
         layout.addLayout(toolbar)
-        self.queue_hint = QLabel("Video blir MP4. Lyd blir MP3. Vi velger formatet for deg.")
+        self.queue_hint = QLabel()
         self.queue_hint.setObjectName("muted")
         self.queue_hint.setWordWrap(True)
+        self.queue_hint.hide()
         layout.addWidget(self.queue_hint)
         self.splitter = QSplitter()
         self.splitter.setChildrenCollapsible(False)
@@ -617,10 +594,14 @@ class MainWindow(QMainWindow):
         self.table.setColumnWidth(2, 88)
         self.table.setColumnWidth(3, 140)
         self.table.setWordWrap(False)
+        self._sort_column, self._sort_descending = None, False
+        self.table.horizontalHeader().setSectionsClickable(True)
+        self.table.horizontalHeader().setCursor(Qt.CursorShape.PointingHandCursor)
+        self.table.horizontalHeader().sectionClicked.connect(self.sort_by_column)
         queue_card = QFrame()
         queue_card.setObjectName("queueCard")
         card_layout = QVBoxLayout(queue_card)
-        card_layout.setContentsMargins(1, 8, 1, 4)
+        card_layout.setContentsMargins(1, 1, 1, 4)
         card_layout.setSpacing(0)
         card_layout.addWidget(self.table, 1)
         card_layout.addWidget(divider())
@@ -630,7 +611,7 @@ class MainWindow(QMainWindow):
         self.selection_count.setObjectName("muted")
         selection_bar.addWidget(self.selection_count)
         selection_bar.addStretch()
-        for button in (self.details, self.remove, self.settings_toggle):
+        for button in (self.details, self.remove):
             selection_bar.addWidget(button)
         card_layout.addLayout(selection_bar)
         self.stack.addWidget(queue_card)
@@ -641,18 +622,21 @@ class MainWindow(QMainWindow):
         self.panel_scroll.setWidgetResizable(True)
         self.panel_scroll.setWidget(self.panel)
         self.preview = PreviewPanel(engine.ffmpeg)
-        preview_scroll = QScrollArea()
-        preview_scroll.setObjectName("inspectorScroll")
-        preview_scroll.setWidgetResizable(True)
-        preview_scroll.setWidget(self.preview)
+        self.preview_scroll = QScrollArea()
+        self.preview_scroll.setObjectName("inspectorScroll")
+        self.preview_scroll.setWidgetResizable(True)
+        self.preview_scroll.setWidget(self.preview)
         self.inspector = QTabWidget()
         self.inspector.setObjectName("inspector")
         self.inspector.setMinimumWidth(320)
-        self.inspector.addTab(preview_scroll, "Forhåndsvisning")
         self.inspector.addTab(self.panel_scroll, "Eksportvalg")
-        self.inspector.setAccessibleName("Forhåndsvisning og eksportvalg for valgt fil")
+        self.inspector.addTab(self.preview_scroll, "Forhåndsvisning")
+        self.inspector.setAccessibleName("Eksportvalg og forhåndsvisning for valgt fil")
         self.inspector.hide()
-        self.inspector.currentChanged.connect(lambda index: self.preview.pause() if index != 0 else None)
+        self._had_selection = False
+        self.inspector.currentChanged.connect(
+            lambda _: self.preview.pause() if self.inspector.currentWidget() is not self.preview_scroll else None
+        )
         self.splitter.addWidget(self.inspector)
         self.splitter.setStretchFactor(0, 3)
         self.splitter.setStretchFactor(1, 1)
@@ -717,7 +701,6 @@ class MainWindow(QMainWindow):
         self.add_folder.clicked.connect(self.pick_folder)
         self.remove.clicked.connect(self.remove_selected)
         self.details.clicked.connect(self.show_details)
-        self.settings_toggle.clicked.connect(self._open_export_settings)
         self.change_folder.clicked.connect(self.pick_destination)
         self.open_folder.clicked.connect(self.reveal_destination)
         self.convert.clicked.connect(self.start_conversion)
@@ -748,10 +731,6 @@ class MainWindow(QMainWindow):
 
     def _set_panel_visibility(self):
         self.inspector.setVisible(bool(self.items))
-
-    def _open_export_settings(self):
-        self._set_panel_visibility()
-        self.inspector.setCurrentIndex(1)
 
     def fit_to_available_screen(self):
         """QScreen gir logiske mål og trekker fra oppgavelinjen, også ved høy DPI."""
@@ -788,7 +767,6 @@ class MainWindow(QMainWindow):
             self._compact, self._tight = compact, tight
             self.setProperty("compact", compact)
             self.drop_area.set_compact(compact, tight=tight)
-            self.profile_motif.setVisible(not compact)
             self.brand_icon.setFixedSize(QSize(48, 48) if compact else QSize(64, 64))
             self.main_layout.setContentsMargins(*(18, 16, 18, 16) if compact else (28, 24, 28, 24))
             self.main_layout.setSpacing(10 if compact else 20)
@@ -807,6 +785,7 @@ class MainWindow(QMainWindow):
             mode == "system" and QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
         )
         colors = DARK if dark else LIGHT
+        self.colors = colors
         self.setStyleSheet(stylesheet(colors))
         self.theme.set_colors(colors)
         for dropdown in self.findChildren(RoundedComboBox):
@@ -816,12 +795,12 @@ class MainWindow(QMainWindow):
         self.folder_icon.setPixmap(line_icon("folder", colors["muted"]).pixmap(24, 24))
         self.drop_area.symbol.set_colors(colors)
         self.profile_motif.set_colors(colors)
+        self.brand_icon.set_colors(colors)
         for button, icon in (
             (self.add_files, "plus"),
             (self.add_folder, "folder"),
             (self.remove, "close"),
             (self.details, "info"),
-            (self.settings_toggle, "settings"),
         ):
             icon_color = colors["text"] if button is self.add_files else colors["muted"]
             button.setIcon(line_icon(icon, icon_color))
@@ -910,6 +889,10 @@ class MainWindow(QMainWindow):
         if not self.busy:
             self.panel.show_items(self.selected_items())
         selected = self.selected_items()
+        # Eksportvalg vises først når noe blir valgt; deretter beholdes brukerens fane.
+        if selected and not self._had_selection:
+            self.inspector.setCurrentWidget(self.panel_scroll)
+        self._had_selection = bool(selected)
         current_row = self.table.currentRow()
         current = self.items[current_row] if 0 <= current_row < len(self.items) else None
         item = current if current in selected else next(iter(selected), None)
@@ -927,7 +910,6 @@ class MainWindow(QMainWindow):
         self.convert.setEnabled(not self.busy and ready and bool(self.engine.encoders))
         self.cancel.setEnabled(self.busy and not self.cancel_event.is_set())
         self.cancel.setVisible(self.busy)
-        self.settings_toggle.setEnabled(bool(self.items))
         self.total_progress.setVisible(self.busy or bool(self._run_items))
         self.count.setText(
             "1 fil" if len(self.items) == 1 else f"{len(self.items)} filer" if self.items else "Ingen filer"
@@ -940,6 +922,49 @@ class MainWindow(QMainWindow):
 
     def row_for(self, id_):
         return next(i for i, item in enumerate(self.items) if item.id == id_)
+
+    def sort_by_column(self, column):
+        if column == self._sort_column:
+            self._sort_descending = not self._sort_descending
+        else:
+            self._sort_column, self._sort_descending = column, False
+        self._apply_sort()
+
+    def _apply_sort(self):
+        if self._sort_column is None:
+            return
+        keys = {
+            0: lambda i: i.path.name.casefold(),
+            1: lambda i: i.settings.name.casefold() if i.settings else "",
+            2: lambda i: i.info.size if i.info else -1,
+            3: lambda i: i.status.casefold(),
+        }
+        # Radene speiler self.items, så vi sorterer listen og tegner tabellen på nytt.
+        selected = {i.id for i in self.selected_items()}
+        current_row = self.table.currentRow()
+        current = self.items[current_row].id if 0 <= current_row < len(self.items) else None
+        self.items.sort(key=keys[self._sort_column], reverse=self._sort_descending)
+        self.table.blockSignals(True)
+        for row in range(len(self.items)):
+            self.render_row(row)
+        self.table.clearSelection()
+        selection = self.table.selectionModel()
+        for row, item in enumerate(self.items):
+            if item.id in selected:
+                selection.select(
+                    self.table.model().index(row, 0),
+                    QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+                )
+            if item.id == current:
+                selection.setCurrentIndex(
+                    self.table.model().index(row, 0), QItemSelectionModel.SelectionFlag.NoUpdate
+                )
+        self.table.blockSignals(False)
+        arrow = " ↓" if self._sort_descending else " ↑"
+        labels = ["Fil", "Eksportprofil", "Størrelse", "Status"]
+        self.table.setHorizontalHeaderLabels(
+            [label + (arrow if n == self._sort_column else "") for n, label in enumerate(labels)]
+        )
 
     def render_row(self, row):
         item = self.items[row]
@@ -1064,6 +1089,7 @@ class MainWindow(QMainWindow):
                 else "Import avbrutt."
             )
             self.total_progress.setValue(0)
+            self._apply_sort()
             if self.items and not self.selected_items():
                 self.table.selectRow(next((n for n, i in enumerate(self.items) if i.info), 0))
             self.convert.setFocus()
@@ -1075,6 +1101,7 @@ class MainWindow(QMainWindow):
             self.queue_hint.setText(
                 "Filene er klare. Bruk anbefalt profil, eller velg en fil for å endre eksporten."
             )
+            self.queue_hint.show()
         self.update_controls()
         if self._closing:
             self.close()
@@ -1139,20 +1166,15 @@ class MainWindow(QMainWindow):
         if not self.items:
             self.stack.setCurrentIndex(0)
             self.inspector.hide()
-            self.queue_hint.setText("Video blir MP4. Lyd blir MP3. Vi velger formatet for deg.")
+            self.queue_hint.clear()
+            self.queue_hint.hide()
             self._run_items = []
         self.update_controls()
 
     def show_details(self):
         selected = self.selected_items()
         if selected:
-            box = QMessageBox(self)
-            box.setWindowTitle("Fildetaljer")
-            box.setText("\n\n".join(f"{i.path.name}\n{i.error or i.status}" for i in selected))
-            box.setDetailedText(
-                "\n\n".join(f"Kilde: {i.path}\nResultat: {i.output or '—'}" for i in selected)
-            )
-            box.exec()
+            FileDetailsDialog(selected, self).exec()
 
     def pick_destination(self):
         folder = QFileDialog.getExistingDirectory(self, "Velg målmappe", str(self.output_folder))

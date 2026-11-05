@@ -10,7 +10,7 @@ from vestfold_converter.appearance import DARK, stylesheet
 from vestfold_converter.import_browser import ImportBrowser, SelectionProbe
 from vestfold_converter.models import Cancelled, MediaError
 from vestfold_converter.ui import MainWindow
-from vestfold_converter.windows_search import SearchMatches
+from vestfold_converter.windows_search import SearchCriterion, SearchMatches
 
 SELECT = QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows
 
@@ -56,8 +56,10 @@ def test_selected_video_can_play_before_import_and_audio_clears_it(qtbot, browse
     select(browser, "c.wav")
     qtbot.waitUntil(lambda: browser.preview.info is not None and not browser.preview.info.video)
     assert browser.preview.canvas.image.isNull()
+    assert browser.preview.canvas.isHidden()
     assert not browser.preview.playing
-    assert not browser.preview.play.isEnabled()
+    # Lyd kan lyttes til før import.
+    assert browser.preview.play.isEnabled()
 
 
 def test_grid_toggle_preserves_multiple_selected_files_and_imports(qtbot, browser):
@@ -158,29 +160,6 @@ def test_cancel_native_picker_restores_selected_preview(qtbot, browser, monkeypa
     assert browser.isVisible()
 
 
-def test_path_bar_shows_file_and_clicking_parent_navigates(qtbot, browser):
-    directory = Path(browser.current_directory)
-    select(browser, "a.mp4")
-    assert browser.path_bar.toolTip() == str(directory / "a.mp4")
-    parent = next(
-        button
-        for button in browser.path_bar.buttons
-        if Path(button.property("folderPath")) == directory.parent
-    )
-    if parent.isVisible():
-        qtbot.mouseClick(parent, Qt.MouseButton.LeftButton)
-    else:
-        qtbot.mouseClick(browser.path_bar.overflow, Qt.MouseButton.LeftButton)
-        menu = browser.path_bar.popup_menu
-        action = next(
-            action for action in menu.actions() if action.data() and Path(action.data()) == directory.parent
-        )
-        qtbot.mouseClick(menu, Qt.MouseButton.LeftButton, pos=menu.actionGeometry(action).center())
-    assert Path(browser.current_directory) == directory.parent
-    browser.go_back()
-    assert Path(browser.current_directory) == directory
-
-
 def test_address_breadcrumbs_navigate_and_ctrl_l_allows_pasted_path(qtbot, browser):
     original = Path(browser.current_directory)
     assert browser.back.text() == browser.forward.text() == browser.up.text() == ""
@@ -219,7 +198,7 @@ def test_search_results_preview_toggle_import_and_show_parent(qtbot, browser, mo
     browser.search_input.setText("opptak")
     qtbot.keyClick(browser.search_input, Qt.Key.Key_Return)
     qtbot.waitUntil(lambda: browser.search_model.rowCount() == 2)
-    assert calls == [("opptak", False)]
+    assert calls == [("opptak", False, directory, ())]
     assert browser.is_search
     index = browser.search_model.index(0, 0)
     # Sorting can put either row first, so locate the requested result by path.
@@ -230,7 +209,6 @@ def test_search_results_preview_toggle_import_and_show_parent(qtbot, browser, mo
     browser.selection.setCurrentIndex(index, SELECT)
     qtbot.waitUntil(lambda: not browser.preview.canvas.image.isNull(), timeout=20000)
     assert browser.selected_paths() == [found]
-    assert browser.path_bar.toolTip() == str(found)
     qtbot.mouseClick(browser.view_buttons["grid"], Qt.MouseButton.LeftButton)
     assert browser.selected_paths() == [found]
     assert browser.grid_view.model() is browser.search_model
@@ -268,6 +246,47 @@ def test_empty_or_unavailable_index_keeps_folder_navigation(qtbot, browser, monk
     assert browser.current_directory == directory
     assert browser.list_view.model() is browser.model
     assert browser.native.isEnabled()
+
+
+def test_search_starts_in_current_folder_and_offers_scope_and_criteria(qtbot, browser, monkeypatch):
+    directory = Path(browser.current_directory)
+    calls = []
+
+    def search(request, cancel):
+        calls.append(request)
+        return SearchMatches(())
+
+    monkeypatch.setattr(browser.searcher, "function", search)
+    assert not browser.search_options.isVisible()
+    assert directory.name in browser.search_input.placeholderText()
+    browser.search_input.setText("opptak")
+    browser.start_search()
+    qtbot.waitUntil(lambda: len(calls) == 1)
+    assert calls[-1] == ("opptak", False, directory, ())
+    options = browser.search_options
+    assert options.isVisible() and options.this_folder.isChecked()
+    assert options.this_folder.text() == f"«{directory.name}»"
+    qtbot.mouseClick(options.this_pc, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: len(calls) == 2)
+    assert calls[-1][2] is None
+    # Size > 100 MB, then file type = jpg, which replaces the default media filter.
+    row = options.add_row()
+    row.field.setCurrentIndex(row.field.findData("size"))
+    qtbot.waitUntil(lambda: calls[-1][3] == (SearchCriterion("size", "gt", "100", "MB"),))
+    second = options.add_row()
+    second.field.setCurrentIndex(second.field.findData("extension"))
+    second.text.setText("jpg")
+    qtbot.waitUntil(lambda: SearchCriterion("extension", "is", "jpg") in calls[-1][3])
+    assert len(calls[-1][3]) == 2
+    qtbot.mouseClick(row.remove, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: calls[-1][3] == (SearchCriterion("extension", "is", "jpg"),))
+    # Clearing the search returns to the folder and hides the bar; a new search starts fresh.
+    browser.search_input.clear()
+    assert not browser.is_search and not options.isVisible()
+    browser.search_input.setText("ny")
+    browser.start_search()
+    qtbot.waitUntil(lambda: calls[-1][0] == "ny")
+    assert calls[-1] == ("ny", False, directory, ())
 
 
 def test_leaving_search_cancels_it_and_discards_old_results(qtbot, browser, monkeypatch):

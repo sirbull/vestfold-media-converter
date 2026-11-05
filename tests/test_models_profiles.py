@@ -11,6 +11,7 @@ from vestfold_converter.profiles import (
     CONTAINERS,
     VIDEO_CODECS,
     default_settings,
+    preset_keys,
     preset_settings,
     validate,
 )
@@ -30,6 +31,37 @@ def test_default_profiles():
     assert default_settings(source()).video_codec == "libx264"
     assert default_settings(source(False)).container == "mp3"
     assert default_settings(source(False)).video_codec is None
+
+
+@pytest.mark.parametrize(
+    ("width", "height", "codec"),
+    [
+        (1920, 1080, "libx264"),
+        (2560, 1440, "libx264"),
+        (3840, 2160, "libx265"),
+        (2160, 3840, "libx265"),
+        (4096, 2160, "libx265"),
+    ],
+)
+def test_4k_and_larger_default_to_h265(width, height, codec):
+    video = Stream(0, "video", "h264", width=width, height=height)
+    info = replace(source(), streams=(video, *source().audio))
+    settings = default_settings(info)
+    assert (settings.container, settings.video_codec) == ("mp4", codec)
+    assert settings.name == ("MP4 · H.265 – Anbefalt" if codec == "libx265" else "MP4 · H.264 – Anbefalt")
+    # Den anbefalte kodeken står bare én gang i listen.
+    names = [preset_settings(key, info).name for key in preset_keys(info)]
+    assert len(names) == len(set(names))
+    assert sum("H.265" in name and "høy" not in name for name in names) == 1
+
+
+@pytest.mark.parametrize("info", [source(), source(False)], ids=["video", "lyd"])
+def test_every_listed_preset_is_valid(info):
+    for key in preset_keys(info):
+        validate(info, preset_settings(key, info), ENCODERS, MUXERS)
+    if not info.video:
+        containers = {preset_settings(key, info).container for key in preset_keys(info)}
+        assert {"mp3", "m4a", "flac", "ogg", "opus", "alac", "wav", "aiff"} <= containers
 
 
 def test_artwork_is_not_video(tmp_path):
