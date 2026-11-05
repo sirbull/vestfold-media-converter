@@ -5,9 +5,10 @@ __pycache__/
 *.egg-info/
 build/
 dist/
-vendor/ffmpeg/bin/
-vendor/ffmpeg/downloads/
-vendor/ffmpeg/upstream/
+# Lages av scripts/fetch_ffmpeg.ps1 fra prosjektets eget FFmpeg-bygg.
+vendor/ffmpeg/
+ffmpeg-work/
+ffmpeg-out/
 artifacts/
 *.log
 

@@ -1,0 +1,137 @@
+{
+  "ffmpeg": {
+    "version": "9.0.2",
+    "file": "ffmpeg-9.0.2.tar.xz",
+    "dir": "ffmpeg-9.0.2",
+    "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+    "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
+    "license": "GPL-3.0-or-later",
+    "homepage": "https://ffmpeg.org/"
+  },
+  "x264": {
+    "version": "stable-b35605ac",
+    "file": "x264-b35605ace3ddf7c1a5d67a2eb553f034aef41d55.tar.gz",
+    "dir": "x264-b35605ace3ddf7c1a5d67a2eb553f034aef41d55",
+    "git": "https://code.videolan.org/videolan/x264.git",
+    "commit": "b35605ace3ddf7c1a5d67a2eb553f034aef41d55",
+    "license": "GPL-2.0-or-later",
+    "homepage": "https://www.videolan.org/developers/x264.html"
+  },
+  "x265": {
+    "version": "4.1",
+    "file": "x265_4.1.tar.gz",
+    "dir": "x265_4.1",
+    "url": "https://bitbucket.org/multicoreware/x265_git/downloads/x265_4.1.tar.gz",
+    "sha256": "a31699c6a89806b74b0151e5e6a7df65de4b49050482fe5ebf8a4379d7af8f29",
+    "license": "GPL-2.0-or-later",
+    "homepage": "https://www.x265.org/"
+  },
+  "libaom": {
+    "version": "3.15.3",
+    "file": "libaom-3.15.3.tar.gz",
+    "dir": "libaom-3.15.3",
+    "url": "https://storage.googleapis.com/aom-releases/libaom-3.15.3.tar.gz",
+    "sha256": "12c01dc731ed7b5a999e28120b45bf58a002ba3435a4ba2cfbc1e084a27c9c04",
+    "license": "BSD-2-Clause",
+    "homepage": "https://aomedia.googlesource.com/aom/"
+  },
+  "libvpx": {
+    "version": "1.16.0",
+    "file": "libvpx-1.16.0.tar.gz",
+    "dir": "libvpx-1.16.0",
+    "url": "https://github.com/webmproject/libvpx/archive/refs/tags/v1.16.0.tar.gz",
+    "sha256": "7a479a3c66b9f5d5542a4c6a1b7d3768a983b1e5c14c60a9396edc9b649e015c",
+    "license": "BSD-3-Clause",
+    "homepage": "https://www.webmproject.org/code/"
+  },
+  "lame": {
+    "version": "3.100",
+    "file": "lame-3.100.tar.gz",
+    "dir": "lame-3.100",
+    "url": "https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz",
+    "sha256": "ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e",
+    "license": "LGPL-2.0-or-later",
+    "homepage": "https://lame.sourceforge.io/"
+  },
+  "opus": {
+    "version": "1.5.2",
+    "file": "opus-1.5.2.tar.gz",
+    "dir": "opus-1.5.2",
+    "url": "https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz",
+    "sha256": "65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1",
+    "license": "BSD-3-Clause",
+    "homepage": "https://opus-codec.org/"
+  },
+  "libogg": {
+    "version": "1.3.6",
+    "file": "libogg-1.3.6.tar.xz",
+    "dir": "libogg-1.3.6",
+    "url": "https://downloads.xiph.org/releases/ogg/libogg-1.3.6.tar.xz",
+    "sha256": "5c8253428e181840cd20d41f3ca16557a9cc04bad4a3d04cce84808677fa1061",
+    "license": "BSD-3-Clause",
+    "homepage": "https://xiph.org/ogg/"
+  },
+  "libvorbis": {
+    "version": "1.3.7",
+    "file": "libvorbis-1.3.7.tar.xz",
+    "dir": "libvorbis-1.3.7",
+    "url": "https://downloads.xiph.org/releases/vorbis/libvorbis-1.3.7.tar.xz",
+    "sha256": "b33cc4934322bcbf6efcbacf49e3ca01aadbea4114ec9589d1b1e9d20f72954b",
+    "license": "BSD-3-Clause",
+    "homepage": "https://xiph.org/vorbis/"
+  },
+  "nv-codec-headers": {
+    "version": "13.0.19.1",
+    "file": "nv-codec-headers-13.0.19.1.tar.gz",
+    "dir": "nv-codec-headers-n13.0.19.1",
+    "url": "https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n13.0.19.1.tar.gz",
+    "sha256": "c293161bd92dac53f2f8fab08abcd4f96773c3644a57b23c2260b4be2311ab2f",
+    "license": "MIT",
+    "homepage": "https://github.com/FFmpeg/nv-codec-headers"
+  },
+  "amf-headers": {
+    "version": "1.5.3",
+    "file": "AMF-headers-v1.5.3.tar.gz",
+    "dir": "amf-headers-v1.5.3",
+    "url": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF/releases/download/v1.5.3/AMF-headers-v1.5.3.tar.gz",
+    "sha256": "0f521ad98041f8001147cded4a660127f18b1c27a801a5cd691bda1fa48381be",
+    "license": "MIT",
+    "homepage": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF"
+  },
+  "libvpl": {
+    "version": "2.16.0",
+    "file": "libvpl-2.16.0.tar.gz",
+    "dir": "libvpl-2.16.0",
+    "url": "https://github.com/intel/libvpl/archive/refs/tags/v2.16.0.tar.gz",
+    "sha256": "d60931937426130ddad9f1975c010543f0da99e67edb1c6070656b7947f633b6",
+    "license": "MIT",
+    "homepage": "https://github.com/intel/libvpl"
+  },
+  "zlib": {
+    "version": "1.3.1",
+    "file": "zlib-1.3.1.tar.gz",
+    "dir": "zlib-1.3.1",
+    "url": "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
+    "sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+    "license": "Zlib",
+    "homepage": "https://zlib.net/"
+  },
+  "bzip2": {
+    "version": "1.0.8",
+    "file": "bzip2-1.0.8.tar.gz",
+    "dir": "bzip2-1.0.8",
+    "url": "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+    "sha256": "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+    "license": "bzip2-1.0.6",
+    "homepage": "https://sourceware.org/bzip2/"
+  },
+  "xz": {
+    "version": "5.8.1",
+    "file": "xz-5.8.1.tar.xz",
+    "dir": "xz-5.8.1",
+    "url": "https://github.com/tukaani-project/xz/releases/download/v5.8.1/xz-5.8.1.tar.xz",
+    "sha256": "0b54f79df85912504de0b14aec7971e3f964491af1812d83447005807513cd9e",
+    "license": "0BSD",
+    "homepage": "https://tukaani.org/xz/"
+  }
+}

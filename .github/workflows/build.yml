@@ -1,0 +1,72 @@
+name: Bygg og test
+on:
+  push:
+    branches: [main, produksjon]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ffmpeg:
+    name: FFmpeg (eget bygg med kildekode)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      # FFmpeg bygges bare på nytt når oppskriften endres.
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: ffmpeg-out
+          key: ffmpeg-${{ hashFiles('scripts/ffmpeg/build.sh', 'scripts/ffmpeg/sources.json', 'scripts/ffmpeg/mingw.cmake') }}
+      - name: Installer verktøykjede
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mingw-w64 nasm cmake make autoconf automake \
+            libtool pkg-config zip git curl python3 perl
+          sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
+          sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+      - name: Bygg FFmpeg
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: bash scripts/ffmpeg/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg
+          path: |
+            ffmpeg-out/*.zip
+            ffmpeg-out/*.tar
+          if-no-files-found: error
+
+  app:
+    name: Test og bygg på Windows
+    needs: ffmpeg
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg
+          path: ffmpeg-out
+      - run: uv sync --frozen --extra dev
+      - name: Installer FFmpeg-bygget
+        shell: pwsh
+        run: |
+          $package = (Get-Item ffmpeg-out/ffmpeg-vmc-*-win64.zip).FullName
+          $source = (Get-Item ffmpeg-out/ffmpeg-vmc-*-source.tar).FullName
+          ./scripts/fetch_ffmpeg.ps1 -Package $package -Source $source
+      - name: Kontroller at FFmpeg dekker appens behov
+        run: uv run python scripts/ffmpeg/verify.py vendor/ffmpeg/bin/ffmpeg.exe
+      - run: uv run ruff check src tests scripts
+      - run: uv run python -m pytest -q --junitxml=test-results.xml
+        env:
+          VMC_REQUIRE_FFMPEG: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: test-results.xml
