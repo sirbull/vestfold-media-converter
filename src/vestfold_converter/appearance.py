@@ -4,7 +4,17 @@ from functools import lru_cache
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QPointF, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPainterPath, QPen, QPixmap, QRegion
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QFontDatabase,
+    QIcon,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QRegion,
+)
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QApplication,
@@ -38,7 +48,10 @@ def _load_font() -> str:
 
 def configure_typography() -> None:
     """Registrer fonten bare i denne appen. Ingen installasjon eller nettverk."""
-    QApplication.instance().setFont(QFont(_load_font(), 10))
+    font = QFont(_load_font(), 10)
+    font.setStyleStrategy(QFont.StyleStrategy.PreferAntialias | QFont.StyleStrategy.NoSubpixelAntialias)
+    font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
+    QApplication.instance().setFont(font)
 
 
 class CrestBadge(QWidget):
@@ -117,7 +130,7 @@ class ImportArtwork(QWidget):
         painter.rotate(-7)
         painter.setBrush(QColor(self.colors["nav"]))
         painter.drawRoundedRect(QRectF(-23, -28, 46, 56), 7, 7)
-        line_icon("video", "#ffffff").paint(painter, QRectF(-12, -15, 24, 24).toRect())
+        _paint_line_icon(painter, QRectF(-12, -15, 24, 24), "video", "#ffffff")
         painter.restore()
         painter.setBrush(QColor(self.colors["motif_soft"]))
         shape = QPainterPath()
@@ -128,7 +141,7 @@ class ImportArtwork(QWidget):
         shape.cubicTo(80, 64, 70, 54, 70, 40)
         shape.closeSubpath()
         painter.drawPath(shape)
-        line_icon("audio", self.colors["motif_red"]).paint(painter, QRectF(80, 17, 25, 25).toRect())
+        _paint_line_icon(painter, QRectF(80, 17, 25, 25), "audio", self.colors["motif_red"])
         painter.setBrush(QColor(self.colors["motif_sand"]))
         painter.drawEllipse(QRectF(51, 57, 18, 18))
 
@@ -302,115 +315,127 @@ DARK = {
 }
 
 
+def _paint_line_icon(painter: QPainter, rect: QRectF, name: str, color: str) -> None:
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.translate(rect.left(), rect.top())
+    painter.scale(rect.width() / 24, rect.height() / 24)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.setPen(
+        QPen(QColor(color), 1.7, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+    )
+    path = QPainterPath()
+    if name == "folder":
+        path.moveTo(3, 7)
+        path.lineTo(3, 19)
+        path.lineTo(21, 19)
+        path.lineTo(21, 7)
+        path.lineTo(12, 7)
+        path.lineTo(10, 4)
+        path.lineTo(3, 4)
+        path.closeSubpath()
+    elif name in {"play", "video", "brand"}:
+        if name == "video":
+            painter.drawRoundedRect(QRectF(3, 4, 18, 16), 3, 3)
+        path.moveTo(10, 8)
+        path.lineTo(16, 12)
+        path.lineTo(10, 16)
+        path.closeSubpath()
+    elif name == "audio":
+        path.moveTo(10, 17)
+        path.lineTo(10, 5)
+        path.lineTo(19, 3)
+        path.lineTo(19, 15)
+        painter.drawEllipse(QRectF(4, 15, 6, 5))
+        painter.drawEllipse(QRectF(13, 13, 6, 5))
+    elif name == "upload":
+        path.moveTo(12, 16)
+        path.lineTo(12, 3)
+        path.moveTo(7, 8)
+        path.lineTo(12, 3)
+        path.lineTo(17, 8)
+        path.moveTo(4, 15)
+        path.lineTo(4, 21)
+        path.lineTo(20, 21)
+        path.lineTo(20, 15)
+    elif name == "plus":
+        path.moveTo(12, 5)
+        path.lineTo(12, 19)
+        path.moveTo(5, 12)
+        path.lineTo(19, 12)
+    elif name == "monitor":
+        painter.drawRoundedRect(QRectF(3, 4, 18, 13), 2, 2)
+        path.moveTo(12, 17)
+        path.lineTo(12, 21)
+        path.moveTo(8, 21)
+        path.lineTo(16, 21)
+    elif name == "sun":
+        painter.drawEllipse(QRectF(8, 8, 8, 8))
+        for x1, y1, x2, y2 in (
+            (12, 2, 12, 4),
+            (12, 20, 12, 22),
+            (2, 12, 4, 12),
+            (20, 12, 22, 12),
+            (5, 5, 6.5, 6.5),
+            (17.5, 17.5, 19, 19),
+            (5, 19, 6.5, 17.5),
+            (17.5, 6.5, 19, 5),
+        ):
+            painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+    elif name == "moon":
+        path.moveTo(15.5, 3.5)
+        path.cubicTo(8, 1, 2.5, 7, 3.5, 13)
+        path.cubicTo(4.5, 21, 15.5, 24, 20.5, 15.5)
+        path.cubicTo(12, 18, 9, 9, 15.5, 3.5)
+        path.closeSubpath()
+    elif name == "close":
+        path.moveTo(6, 6)
+        path.lineTo(18, 18)
+        path.moveTo(18, 6)
+        path.lineTo(6, 18)
+    elif name == "check":
+        path.moveTo(5, 12)
+        path.lineTo(10, 17)
+        path.lineTo(19, 7)
+    elif name == "settings":
+        for y, x in ((6, 8), (12, 16), (18, 10)):
+            painter.drawLine(QPointF(3, y), QPointF(21, y))
+            painter.setBrush(QColor(color))
+            painter.drawEllipse(QPointF(x, y), 2, 2)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+    elif name == "info":
+        painter.drawEllipse(QRectF(3, 3, 18, 18))
+        path.moveTo(12, 11)
+        path.lineTo(12, 17)
+        painter.drawPoint(QPointF(12, 7))
+    elif name == "shield":
+        path.moveTo(12, 3)
+        path.lineTo(20, 6)
+        path.lineTo(19, 15)
+        path.quadTo(17, 19, 12, 22)
+        path.quadTo(7, 19, 5, 15)
+        path.lineTo(4, 6)
+        path.closeSubpath()
+    painter.drawPath(path)
+    painter.restore()
+
+
 @lru_cache(maxsize=128)
 def line_icon(name: str, color: str) -> QIcon:
     icon = QIcon()
-    for size in (16, 20, 24, 32, 48, 64):
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.scale(size / 24, size / 24)
-        painter.setPen(
-            QPen(
-                QColor(color), 1.7, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin
-            )
-        )
-        path = QPainterPath()
-        if name == "folder":
-            path.moveTo(3, 7)
-            path.lineTo(3, 19)
-            path.lineTo(21, 19)
-            path.lineTo(21, 7)
-            path.lineTo(12, 7)
-            path.lineTo(10, 4)
-            path.lineTo(3, 4)
-            path.closeSubpath()
-        elif name in {"play", "video", "brand"}:
-            if name == "video":
-                painter.drawRoundedRect(QRectF(3, 4, 18, 16), 3, 3)
-            path.moveTo(10, 8)
-            path.lineTo(16, 12)
-            path.lineTo(10, 16)
-            path.closeSubpath()
-        elif name == "audio":
-            path.moveTo(10, 17)
-            path.lineTo(10, 5)
-            path.lineTo(19, 3)
-            path.lineTo(19, 15)
-            painter.drawEllipse(QRectF(4, 15, 6, 5))
-            painter.drawEllipse(QRectF(13, 13, 6, 5))
-        elif name == "upload":
-            path.moveTo(12, 16)
-            path.lineTo(12, 3)
-            path.moveTo(7, 8)
-            path.lineTo(12, 3)
-            path.lineTo(17, 8)
-            path.moveTo(4, 15)
-            path.lineTo(4, 21)
-            path.lineTo(20, 21)
-            path.lineTo(20, 15)
-        elif name == "plus":
-            path.moveTo(12, 5)
-            path.lineTo(12, 19)
-            path.moveTo(5, 12)
-            path.lineTo(19, 12)
-        elif name == "monitor":
-            painter.drawRoundedRect(QRectF(3, 4, 18, 13), 2, 2)
-            path.moveTo(12, 17)
-            path.lineTo(12, 21)
-            path.moveTo(8, 21)
-            path.lineTo(16, 21)
-        elif name == "sun":
-            painter.drawEllipse(QRectF(8, 8, 8, 8))
-            for x1, y1, x2, y2 in (
-                (12, 2, 12, 4),
-                (12, 20, 12, 22),
-                (2, 12, 4, 12),
-                (20, 12, 22, 12),
-                (5, 5, 6.5, 6.5),
-                (17.5, 17.5, 19, 19),
-                (5, 19, 6.5, 17.5),
-                (17.5, 6.5, 19, 5),
-            ):
-                painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
-        elif name == "moon":
-            path.moveTo(15.5, 3.5)
-            path.cubicTo(8, 1, 2.5, 7, 3.5, 13)
-            path.cubicTo(4.5, 21, 15.5, 24, 20.5, 15.5)
-            path.cubicTo(12, 18, 9, 9, 15.5, 3.5)
-            path.closeSubpath()
-        elif name == "close":
-            path.moveTo(6, 6)
-            path.lineTo(18, 18)
-            path.moveTo(18, 6)
-            path.lineTo(6, 18)
-        elif name == "check":
-            path.moveTo(5, 12)
-            path.lineTo(10, 17)
-            path.lineTo(19, 7)
-        elif name == "settings":
-            for y, x in ((6, 8), (12, 16), (18, 10)):
-                painter.drawLine(QPointF(3, y), QPointF(21, y))
-                painter.setBrush(QColor(color))
-                painter.drawEllipse(QPointF(x, y), 2, 2)
-                painter.setBrush(Qt.BrushStyle.NoBrush)
-        elif name == "info":
-            painter.drawEllipse(QRectF(3, 3, 18, 18))
-            path.moveTo(12, 11)
-            path.lineTo(12, 17)
-            painter.drawPoint(QPointF(12, 7))
-        elif name == "shield":
-            path.moveTo(12, 3)
-            path.lineTo(20, 6)
-            path.lineTo(19, 15)
-            path.quadTo(17, 19, 12, 22)
-            path.quadTo(7, 19, 5, 15)
-            path.lineTo(4, 6)
-            path.closeSubpath()
-        painter.drawPath(path)
-        painter.end()
-        icon.addPixmap(pixmap)
+    # Supply exact physical sizes for the controls at common Windows DPI scales.
+    # Use Qt's native pixmap engine for safe copying and disabled-state rendering.
+    scales = {1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0}
+    scales.update(screen.devicePixelRatio() for screen in QApplication.screens())
+    for size in (16, 18, 20, 22, 24, 25, 32):
+        for scale in sorted(scales):
+            pixmap = QPixmap(QSize(size, size) * scale)
+            pixmap.setDevicePixelRatio(scale)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            painter = QPainter(pixmap)
+            _paint_line_icon(painter, QRectF(0, 0, size, size), name, color)
+            painter.end()
+            icon.addPixmap(pixmap)
     return icon
 
 
@@ -462,9 +487,7 @@ class QueueDelegate(QStyledItemDelegate):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(colors["video_bg" if video else "audio_bg"]))
             painter.drawRoundedRect(icon_rect, 10, 10)
-            line_icon("video" if video else "audio", color).paint(
-                painter, icon_rect.adjusted(9, 9, -9, -9).toRect()
-            )
+            _paint_line_icon(painter, icon_rect.adjusted(9, 9, -9, -9), "video" if video else "audio", color)
             content = rect.adjusted(54, 0, 0, 0)
             font.setBold(True)
             painter.setFont(font)

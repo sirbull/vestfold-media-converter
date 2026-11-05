@@ -1,5 +1,6 @@
 import pytest
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, QSize, Qt
+from PySide6.QtGui import QIcon, QImage
 from PySide6.QtWidgets import QComboBox, QStyle, QStyleOptionComboBox
 
 from vestfold_converter.appearance import (
@@ -7,10 +8,38 @@ from vestfold_converter.appearance import (
     RoundedComboBox,
     ThemeSwitcher,
     configure_typography,
+    line_icon,
     stylesheet,
 )
 from vestfold_converter.storage import load_preferences, save_preferences
 from vestfold_converter.ui import MainWindow
+
+
+@pytest.mark.parametrize("size", [18, 20, 22, 24, 25])
+@pytest.mark.parametrize("scale", [1.0, 1.25, 1.5, 1.75, 2.0, 3.0])
+def test_line_icons_render_at_requested_screen_resolution(qapp, size, scale):
+    pixmap = line_icon("folder", "#005260").pixmap(QSize(size, size), scale)
+    assert pixmap.size() == QSize(size, size) * scale
+    assert pixmap.devicePixelRatio() == scale
+    image = pixmap.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+    alpha = memoryview(image.constBits())[3::4]
+    assert max(alpha) > 200
+    assert any(0 < value < 200 for value in alpha)
+    assert image.pixelColor(0, 0).alpha() == 0
+    assert image.pixelColor(image.width() // 2, image.height() // 2).alpha() == 0
+
+
+def test_copied_line_icon_keeps_disabled_state_and_transparency(qapp):
+    icon = QIcon(line_icon("play", "#ffffff"))
+    icon.setIsMask(True)  # Detach the copy, as Qt does when changing icon properties.
+    normal = icon.pixmap(QSize(24, 24), 1.5).toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+    disabled = icon.pixmap(QSize(24, 24), 1.5, QIcon.Mode.Disabled).toImage().convertToFormat(
+        QImage.Format.Format_RGBA8888
+    )
+    assert max(memoryview(normal.constBits())[3::4]) > 200
+    assert not disabled.isNull()
+    assert max(memoryview(disabled.constBits())[3::4]) > 0
+    assert disabled.pixelColor(0, 0).alpha() == 0
 
 
 def format_picker(qtbot, points=10):

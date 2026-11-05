@@ -4,6 +4,8 @@ Portabel Windows-app for lyd og video. Grensesnittet er på norsk, med engelske 
 
 Grensesnittet bruker Nunito, papirfargede flater og rødt/gult fra Vestfold-våpenskjoldet. Konvertering har en tydelig rød hovedknapp. Fonten følger med programmet og fungerer offline uten installasjon på Windows.
 
+Teksten tegnes med FreeType og kantutjevning på Windows. Ikonene tegnes som vektorer i skjermens faktiske oppløsning, også ved 125 og 150 prosent skalering. Dette endrer ingen Windows-innstillinger.
+
 Øverst velges tema med tre ikoner: skjerm for systemtema, sol for lyst og måne for mørkt. Valgt ikon er markert. Pek på et ikon for forklaring; piltastene kan også brukes til å bytte tema.
 
 Ved oppstart tilpasses vinduet automatisk til skjermens tilgjengelige arbeidsflate, inkludert Windows-skalering og plass til oppgavelinjen. På lave skjermer brukes et mer kompakt oppsett, slik at import, målmappe og konverteringsknapp er synlige uten maksimering. Faktisk skjermtilpasning kan kontrolleres med `uv run --frozen --offline python scripts/check_window_layout.py`.

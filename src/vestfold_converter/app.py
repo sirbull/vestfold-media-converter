@@ -1,3 +1,4 @@
+import os
 import sys
 
 from PySide6.QtCore import QLocale
@@ -12,7 +13,16 @@ from .ui import MainWindow
 
 
 def main() -> int:
-    app = QApplication(sys.argv)
+    arguments = list(sys.argv)
+    # FreeType gives the bundled variable font smooth outlines at fractional DPI.
+    # Keep explicit Qt platform choices (including headless tests) intact.
+    if (
+        sys.platform == "win32"
+        and not os.environ.get("QT_QPA_PLATFORM")
+        and not any(arg == "-platform" or arg.startswith("-platform=") for arg in arguments)
+    ):
+        arguments += ["-platform", "windows:fontengine=freetype"]
+    app = QApplication(arguments)
     app.setApplicationName("Vestfold media converter")
     app.setApplicationVersion(__version__)
     app.setOrganizationName("VestfoldMediaConverter")
