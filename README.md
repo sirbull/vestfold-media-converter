@@ -22,6 +22,10 @@ Video får automatisk **MP4 – Anbefalt** (H.264, CRF 21, medium, AAC-LC 192 kb
 
 Resultatene lagres i Windows sin Dokumenter-mappe under `Mediekonverter`. **Velg målmappe** endrer dette. Originalene beholdes alltid. Ved navnekonflikt brukes `navn (1).mp4`, `navn (2).mp4` osv. FFmpeg skriver til en midlertidig fil i målmappen; bare verifiserte resultater får endelig navn. **Avbryt** stopper den aktuelle jobben og beholder allerede fullførte resultater.
 
+**Legg til filer**, importfeltet og Ctrl+O åpner en filbrowser. Marker en video for forhåndsvisning til høyre, med avspilling uten lyd og en tidslinje. Dra skillelinjen for å endre størrelsen på forhåndsvisningen. **Liste** og **Rutenett** viser de samme filene og beholder markeringen når du bytter. Ctrl/Shift velger flere filer; **Importer valgte** legger dem i konverteringskøen. Dobbeltklikk åpner en mappe eller importerer valgte filer.
+
+Browseren henter mappesnarveier fra Windows Hurtigtilgang i bakgrunnen. Den viser også standardmapper og stasjoner. **Utforsker …** åpner Windows sin vanlige filvelger med hele systemets navigasjon. Hvis Hurtigtilgang ikke kan leses, vises en melding og Utforsker-knappen fungerer fortsatt. Visningsvalget og panelbreddene huskes; filvalg og mappestier fra browseren lagres ikke. **Legg til mappe** bruker fortsatt systemets mappevelger.
+
 Køen viser type, originalformat, varighet, størrelse, profil og status. Velg en rad for å se filen i forhåndsvisningen ved siden av. Ctrl/Shift eller Ctrl+A velger flere rader. Profilvalg gjelder valgte rader; **Konverter** behandler alle ufullførte, gyldige rader. Dobbeltklikk eller **Detaljer** viser feil og filstier. Ctrl+O importerer; Delete fjerner valgte rader fra køen.
 
 Medietype, originalformat og varighet vises under filnavnet. Statusmerker og fremdrift vises til høyre; filhandlingene ligger under køen. Målmappe og konverteringsknappen er samlet nederst.

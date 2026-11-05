@@ -571,6 +571,18 @@ def stylesheet(c: dict) -> str:
     return f"""
         QWidget {{ font-family: 'Nunito'; font-size: 10pt; color: {c["text"]}; }}
         QMainWindow, QWidget#mainSurface {{ background: {c["background"]}; }}
+        QDialog#importBrowser {{ background: {c["background"]}; }}
+        QDialog#importBrowser QTreeView, QDialog#importBrowser QListView {{
+            background: {c["surface"]}; color: {c["text"]}; border: 1px solid {c["border"]};
+            border-radius: 8px; selection-background-color: {c["selected"]};
+            selection-color: {c["text"]}; outline: 0; }}
+        QListWidget#browserPlaces::item {{ padding: 5px 6px; }}
+        QTreeView#browserFiles::item {{ min-height: 26px; padding: 2px 4px; }}
+        QDialog#importBrowser QPushButton:checked {{
+            background: {c["yellow"]}; color: {c["yellow_text"]}; border-color: {c["yellow"]}; }}
+        QSplitter#importSplitter::handle {{ background: {c["border"]};
+            border-radius: 3px; margin: 10px 3px; }}
+        QSplitter#importSplitter::handle:hover {{ background: {c["accent"]}; }}
         QLabel {{ background: transparent; }}
         QLabel#title {{ font-size: 21pt; font-weight: 850; }}
         QLabel#sectionTitle {{ font-size: 14pt; font-weight: 800; }}

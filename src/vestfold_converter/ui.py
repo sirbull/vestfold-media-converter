@@ -49,6 +49,7 @@ from .appearance import (
     stylesheet,
 )
 from .engine import MediaEngine
+from .import_browser import ImportBrowser
 from .models import ExportSettings, MediaError, QueueItem
 from .preview import PreviewPanel
 from .profiles import (
@@ -829,9 +830,22 @@ class MainWindow(QMainWindow):
 
     def pick_files(self):
         if not self.busy:
-            files, _ = QFileDialog.getOpenFileNames(self, "Velg lyd- eller videofiler", "", "Alle filer (*)")
-            if files:
-                self.import_files([Path(p) for p in files])
+            browser = ImportBrowser(
+                self.engine,
+                self,
+                view=self.preferences.get("import_view", "list"),
+                sizes=self.preferences.get("import_splitter"),
+            )
+            try:
+                browser.exec()
+                self.preferences["import_view"] = browser.view_mode
+                self.preferences["import_splitter"] = browser.splitter.sizes()
+                self._save()
+                if browser.files:
+                    self.import_files(browser.files)
+            finally:
+                browser.reject()
+                browser.deleteLater()
 
     def pick_folder(self):
         if not self.busy:

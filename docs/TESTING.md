@@ -12,6 +12,7 @@
 - 64-bit filstørrelser over 4 GB med simulert stat-resultat, uten å allokere gigabyte i testene.
 - Qt-flyter med faktisk bakgrunnsanalyse og konvertering: blandet kø uten justeringer, kun lydinnstillinger for lydfiler, flervalg og lukking under arbeid.
 - FFmpeg-basert forhåndsvisning: MTS/MP4/interlaced video, stillbilde, avspilling/pause, søking til en annen scene, kansellering ved bytte til lyd, lesefeil og opprydding. Mappeimport og valg av en annen rad styrer forhåndsvisningen ved siden av køen, også i kompakt visning.
+- Importbrowser: forhåndsvisning og avspilling før import, flervalg på tvers av liste/rutenett, navigasjon, filfilter, justerbar panelbredde, små vinduer og opprydding ved avbrudd. Feil ved lesing av Hurtigtilgang og systemfilvelgerens retur/avbrudd testes uten å endre systemets snarveier.
 
 Mediefiksturer lages med FFmpeg i pytest sin midlertidige mappe. Ingen eksterne mediedata eller nettverk brukes under testene. Qt-testene kjører med offscreen-plattform. En Windows-CI er inkludert; denne er ikke automatisk kjørt bare fordi filen finnes lokalt.
 
