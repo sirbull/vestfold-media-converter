@@ -203,7 +203,7 @@ def _query_index(sql: str, limit: int, cancel: threading.Event) -> list[str]:
                 urls.append(value)
             records.MoveNext()
         return urls
-    except pythoncom.com_error as exc:
+    except (pythoncom.com_error, AttributeError, TypeError) as exc:
         raise index_error(exc) from exc
     finally:
         for handle in (records, connection):

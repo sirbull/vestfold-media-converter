@@ -1,4 +1,4 @@
-# Installer prosjektets eget FFmpeg-bygg (scripts/ffmpeg/build.sh) i vendor/ffmpeg.
+﻿# Installer prosjektets eget FFmpeg-bygg (scripts/ffmpeg/build.sh) i vendor/ffmpeg.
 #
 # Pakken og kildearkivet lages av arbeidsflyten "Bygg og test" i GitHub Actions
 # (artefakten "ffmpeg"). Last den ned og pakk ut zip-filen fra Actions, og kjør:

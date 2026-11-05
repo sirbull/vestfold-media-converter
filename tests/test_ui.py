@@ -9,6 +9,17 @@ def wait_idle(qtbot, window):
     qtbot.waitUntil(lambda: not window.busy, timeout=90000)
 
 
+def test_many_short_jobs_release_their_worker_once(qtbot, engine, tmp_path):
+    # Korte jobber rett etter hverandre gjør at opprydding i arbeidertråden og i
+    # hovedtråden ville overlappe hvis arbeideren ble slettet begge steder.
+    window = MainWindow(engine, initialize=False, preferences_path=tmp_path / "settings.json")
+    qtbot.addWidget(window)
+    for _ in range(300):
+        window.start_job("analyze", paths=[], known=[])
+        wait_idle(qtbot, window)
+        assert window.thread is None and window.worker is None
+
+
 def test_mixed_queue_one_click(qtbot, engine, media, tmp_path):
     window = MainWindow(engine, initialize=False, preferences_path=tmp_path / "settings.json")
     qtbot.addWidget(window)

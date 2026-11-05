@@ -494,7 +494,6 @@ class MainWindow(QMainWindow):
         self.worker.converted.connect(self.on_converted)
         self.worker.done.connect(self.on_done)
         self.worker.done.connect(self.thread.quit)
-        self.worker.done.connect(self.worker.deleteLater)
         self.thread.finished.connect(self.job_finished)
         self.thread.finished.connect(self.thread.deleteLater)
         self.message.setText(
@@ -699,6 +698,9 @@ class MainWindow(QMainWindow):
         self._summary = summary
 
     def job_finished(self):
+        # Arbeideren eies av Python og slettes her, først når tråden har stoppet helt.
+        # En deleteLater i arbeidertråden i tillegg kunne slette den samtidig og krasje appen.
+        self.thread.wait()
         self.busy = False
         self.thread = self.worker = None
         self.total_progress.setRange(0, 1000)

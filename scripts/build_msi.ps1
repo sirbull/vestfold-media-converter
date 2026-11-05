@@ -1,4 +1,4 @@
-# Lag MSI-pakken fra den ferdige programmappen (kjør scripts/build.ps1 først).
+﻿# Lag MSI-pakken fra den ferdige programmappen (kjør scripts/build.ps1 først).
 # Krever WiX 5: dotnet tool install --global wix --version 5.0.2
 # WiX 5 er åpen kildekode (MS-RL). WiX 6 har andre lisensvilkår og brukes ikke.
 param(

@@ -1,4 +1,4 @@
-# Bygg den portable programmappen, og eventuelt MSI-pakken, fra kildekoden.
+﻿# Bygg den portable programmappen, og eventuelt MSI-pakken, fra kildekoden.
 #
 # Forutsetning: prosjektets eget FFmpeg-bygg er installert med scripts/fetch_ffmpeg.ps1
 # (med -Source), slik at kildekoden til FFmpeg kan følge med programmet.

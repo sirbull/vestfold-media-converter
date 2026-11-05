@@ -26,7 +26,8 @@ def _read_quick_access(cancel: threading.Event) -> list[dict]:
             if item.IsFolder and not str(item.Path).startswith("::"):
                 places.append({"name": item.Name, "path": item.Path})
         return places
-    except pythoncom.com_error as exc:
+    except (pythoncom.com_error, AttributeError, TypeError) as exc:
+        # Uventede svar fra Shell gir samme melding som en utilgjengelig Hurtigtilgang.
         raise MediaError("Kunne ikke lese Hurtigtilgang fra Windows.") from exc
     finally:
         pythoncom.CoUninitialize()
