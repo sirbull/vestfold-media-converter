@@ -2,9 +2,8 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QDate, QSize, Signal
+from PySide6.QtCore import QDate, QSize, Qt, Signal
 from PySide6.QtWidgets import (
-    QAbstractSpinBox,
     QButtonGroup,
     QDateEdit,
     QDoubleSpinBox,
@@ -25,8 +24,8 @@ from .windows_search import SearchCriterion
 FIELDS = (
     ("Type", "kind", (("er", "is"), ("er ikke", "is_not"))),
     ("Filtype", "extension", (("er", "is"), ("er ikke", "is_not"))),
-    ("Størrelse", "size", (("er større enn", "gt"), ("er mindre enn", "lt"))),
-    ("Endret", "modified", (("innen siste", "within"), ("før", "before"), ("etter", "after"))),
+    ("Størrelse", "size", (("større enn", "gt"), ("mindre enn", "lt"))),
+    ("Endret", "modified", (("siste", "within"), ("før", "before"), ("etter", "after"))),
     (
         "Navn",
         "name",
@@ -37,6 +36,8 @@ FIELDS = (
 
 def _combo(items, colors):
     widget = RoundedComboBox()
+    # Bredden følger teksten, så ingen valg kuttes.
+    widget.setSizeAdjustPolicy(RoundedComboBox.SizeAdjustPolicy.AdjustToContents)
     for label, value in items:
         widget.addItem(label, value)
     if colors:
@@ -74,9 +75,10 @@ class CriterionRow(QFrame):
         self.age_unit = _combo(
             [("dager", "days"), ("uker", "weeks"), ("måneder", "months"), ("år", "years")], colors
         )
+        # Pilene skjules i stilarket; NoButtons sammen med stilark gir et tekstfelt på 1 px i Qt.
         for number in (self.size, self.age):
-            number.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-            number.setFixedWidth(84)
+            number.setFixedWidth(64)
+            number.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.date = QDateEdit(QDate.currentDate())
         self.date.setCalendarPopup(True)
         self.date.setDisplayFormat("dd.MM.yyyy")

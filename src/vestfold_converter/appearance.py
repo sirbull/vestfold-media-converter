@@ -61,30 +61,41 @@ class CrestBadge(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.setFixedSize(64, 64)
         self.setAccessibleName("Vestfold Media Converter-ikon")
         self.renderer = QSvgRenderer(str(asset_path("vmc-ikon.svg")), self)
         if not self.renderer.isValid():
             raise RuntimeError("Kunne ikke laste programikonet fra programmets assets-mappe.")
         self.framed = False
+        self.set_base_size(64)
+
+    def set_base_size(self, size):
+        self._base = size
+        # Sirkelen i mørkt tema er litt større enn det frie ikonet i lyst tema.
+        side = round(size * 1.125) if self.framed else size
+        self.setFixedSize(side, side)
 
     def set_colors(self, colors):
         # I lyst tema står ikonet rett på bakgrunnen; i mørkt tema gir flaten kontrast.
         self.framed = colors["background"] == DARK["background"]
+        self.set_base_size(self._base)
         self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        side = min(self.width(), self.height())
         if self.framed:
             painter.setPen(QPen(QColor("#b9bcb2"), 1))
             painter.setBrush(QColor("#f5f5ef"))
-            side = min(self.width(), self.height()) - 1
-            painter.drawEllipse(QRectF((self.width() - side) / 2, (self.height() - side) / 2, side, side))
-        # Skjoldets øvre hjørner må holde seg innenfor sirkelen; uten ramme får ikonet hele plassen.
-        size = min(self.width(), self.height()) * (40 / 64 if self.framed else 60 / 64)
+            ring = side - 1
+            painter.drawEllipse(QRectF((self.width() - ring) / 2, (self.height() - ring) / 2, ring, ring))
+            # Skjoldet er bredest øverst; tyngdepunktet ligger på 46 % av høyden. Litt lavere
+            # plassering gir optisk balanse, og de øvre hjørnene holder seg innenfor sirkelen.
+            size, drop = side * 0.64, side * 0.64 * 0.06
+        else:
+            size, drop = side * 60 / 64, 0
         self.renderer.render(
-            painter, QRectF((self.width() - size) / 2, (self.height() - size) / 2, size, size)
+            painter, QRectF((self.width() - size) / 2, (self.height() - size) / 2 + drop, size, size)
         )
 
 
@@ -118,40 +129,30 @@ class ProfileMotif(QWidget):
 
 
 class ImportArtwork(QWidget):
+    """Video- og lydikonet fra drop-ikoner.svg, sentrert i slippfeltet."""
+
     def __init__(self):
         super().__init__()
-        self.setFixedSize(124, 80)
+        self.setFixedSize(100, 93)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.colors = LIGHT
+        self.renderer = QSvgRenderer(str(asset_path("drop-ikoner.svg")), self)
+        if not self.renderer.isValid():
+            raise RuntimeError("Kunne ikke laste ikonene for slippfeltet fra programmets assets-mappe.")
 
     def set_colors(self, colors):
-        self.colors = colors
+        # Ikonene har faste farger og ser like ut i begge temaer.
         self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.scale(self.width() / 124, self.height() / 80)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.save()
-        painter.translate(32, 44)
-        painter.rotate(-7)
-        painter.setBrush(QColor(self.colors["nav"]))
-        painter.drawRoundedRect(QRectF(-23, -28, 46, 56), 7, 7)
-        _paint_line_icon(painter, QRectF(-12, -15, 24, 24), "video", "#ffffff")
-        painter.restore()
-        painter.setBrush(QColor(self.colors["motif_soft"]))
-        shape = QPainterPath()
-        shape.moveTo(70, 6)
-        shape.lineTo(116, 6)
-        shape.lineTo(116, 40)
-        shape.cubicTo(116, 54, 105, 64, 93, 64)
-        shape.cubicTo(80, 64, 70, 54, 70, 40)
-        shape.closeSubpath()
-        painter.drawPath(shape)
-        _paint_line_icon(painter, QRectF(80, 17, 25, 25), "audio", self.colors["motif_red"])
-        painter.setBrush(QColor(self.colors["motif_sand"]))
-        painter.drawEllipse(QRectF(51, 57, 18, 18))
+        # Behold forholdet mellom bredde og høyde, uansett widgetstørrelse.
+        box = self.renderer.viewBoxF()
+        scale = min(self.width() / box.width(), self.height() / box.height())
+        width, height = box.width() * scale, box.height() * scale
+        self.renderer.render(
+            painter, QRectF((self.width() - width) / 2, (self.height() - height) / 2, width, height)
+        )
 
 
 class RoundedComboBox(QComboBox):
@@ -687,11 +688,23 @@ def stylesheet(c: dict) -> str:
             border-radius: 8px; }}
         QFrame#browserPane QTreeView, QFrame#browserPane QListView {{ border: 0; }}
         QFrame#browserPane QHeaderView::section {{ padding: 5px 10px; border-radius: 0; }}
-        QFrame#searchOptions QComboBox {{ padding: 4px 30px 4px 10px; min-height: 18px; border-width: 1px; }}
+        /* Søkelinjen er kompakt: mindre skrift og lavere felt enn resten av appen. */
+        QFrame#searchOptions QComboBox, QFrame#searchOptions QLineEdit, QFrame#searchOptions QAbstractSpinBox,
+        QFrame#searchOptions QPushButton, QFrame#searchOptions QLabel {{ font-size: 9pt; }}
+        QFrame#searchOptions QComboBox {{ padding: 3px 24px 3px 8px; min-height: 16px; border-width: 1px;
+            border-radius: 7px; }}
+        QFrame#searchOptions QComboBox::drop-down {{ width: 18px; margin-right: 4px; }}
+        QFrame#searchOptions QComboBox::down-arrow {{ width: 12px; height: 12px; }}
         QFrame#searchOptions QLineEdit, QFrame#searchOptions QAbstractSpinBox {{ background: {c["surface"]};
-            border: 1px solid {c["border"]}; border-radius: 7px; padding: 4px 6px; min-height: 18px; }}
-        QFrame#searchOptions QAbstractSpinBox:focus {{ border-color: {c["accent"]}; }}
-        QPushButton#scopeButton {{ padding: 4px 12px; min-height: 18px; border-radius: 13px; }}
+            border: 1px solid {c["border"]}; border-radius: 7px; padding: 3px 6px; min-height: 16px; }}
+        /* Tekstfeltet inne i tallboksen skal ikke ha egen kant eller luft, ellers forsvinner tallet. */
+        QFrame#searchOptions QAbstractSpinBox QLineEdit {{ border: 0; padding: 0 6px; margin: 0; min-height: 0;
+            background: transparent; }}
+        QFrame#searchOptions QAbstractSpinBox::up-button, QFrame#searchOptions QAbstractSpinBox::down-button {{
+            width: 0; border: 0; image: none; }}
+        QFrame#searchOptions QLineEdit:focus, QFrame#searchOptions QAbstractSpinBox:focus {{
+            border: 1px solid {c["accent"]}; }}
+        QPushButton#scopeButton {{ padding: 3px 10px; min-height: 16px; border-radius: 12px; }}
         QLineEdit#browserSearch {{ padding: 4px 6px; min-height: 18px; max-height: 18px; margin: 1px; }}
         QLineEdit#browserSearch:focus {{ border: 1px solid {c["accent"]}; }}
         QPushButton#browserViewButton {{ padding: 0; min-height: 26px; max-height: 26px;
@@ -720,6 +733,7 @@ def stylesheet(c: dict) -> str:
         QMenu#pathMenu::separator {{ height: 1px; background: {c["border"]}; margin: 4px; }}
         QLabel {{ background: transparent; }}
         QLabel#title {{ font-size: 21pt; font-weight: 850; }}
+        QLabel#subtitle {{ color: {c["muted"]}; font-size: 10pt; }}
         QLabel#sectionTitle {{ font-size: 14pt; font-weight: 800; }}
         QLabel#muted, QLabel#selectionDetail, QLabel#eyebrow {{ color: {c["muted"]}; }}
         QLabel#eyebrow {{ font-size: 9pt; font-weight: 600; }}
@@ -821,6 +835,7 @@ def stylesheet(c: dict) -> str:
         QAbstractScrollArea::corner {{ background: transparent; }}
         QToolTip {{ background: {c["surface"]}; color: {c["text"]}; border: 1px solid {c["border"]}; padding: 5px; }}
         QMainWindow[compact="true"] QLabel#title {{ font-size: 18pt; }}
+        QMainWindow[compact="true"] QLabel#subtitle {{ font-size: 9pt; }}
         QMainWindow[compact="true"] QLabel#sectionTitle {{ font-size: 12pt; }}
         QMainWindow[compact="true"] QLabel#dropTitle {{ font-size: 16pt; }}
         QMainWindow[compact="true"] QPushButton, QMainWindow[compact="true"] QToolButton {{

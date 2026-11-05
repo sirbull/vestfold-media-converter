@@ -124,7 +124,7 @@ class DropArea(QPushButton):
 
     def set_compact(self, compact, *, tight=False):
         self.symbol.setVisible(not tight)
-        self.symbol.setFixedSize(QSize(78, 50) if compact else QSize(124, 80))
+        self.symbol.setFixedSize(QSize(76, 71) if compact else QSize(100, 93))
         self.title.setText(
             "Dra en fil hit eller klikk for å velge fil"
             if compact
@@ -522,6 +522,9 @@ class MainWindow(QMainWindow):
         title = QLabel("Vestfold Media Converter")
         title.setObjectName("title")
         title_block.addWidget(title)
+        subtitle = QLabel("For video- og lydfiler")
+        subtitle.setObjectName("subtitle")
+        title_block.addWidget(subtitle)
         header.addLayout(title_block)
         header.addStretch()
         self.profile_motif = ProfileMotif()
@@ -656,7 +659,7 @@ class MainWindow(QMainWindow):
         dest_layout.addWidget(self.folder_icon)
         destination_text = QVBoxLayout()
         destination_text.setSpacing(4)
-        dest_title = QLabel("LAGRE RESULTATENE I")
+        dest_title = QLabel("LAGRE KONVERTERTE FILER I")
         dest_title.setObjectName("eyebrow")
         self.destination = PathLabel(str(self.output_folder))
         self.destination.setToolTip(str(self.output_folder))
@@ -767,7 +770,7 @@ class MainWindow(QMainWindow):
             self._compact, self._tight = compact, tight
             self.setProperty("compact", compact)
             self.drop_area.set_compact(compact, tight=tight)
-            self.brand_icon.setFixedSize(QSize(48, 48) if compact else QSize(64, 64))
+            self.brand_icon.set_base_size(48 if compact else 64)
             self.main_layout.setContentsMargins(*(18, 16, 18, 16) if compact else (28, 24, 28, 24))
             self.main_layout.setSpacing(10 if compact else 20)
             self.destination_layout.setContentsMargins(*(14, 10, 14, 10) if compact else (20, 16, 20, 16))
