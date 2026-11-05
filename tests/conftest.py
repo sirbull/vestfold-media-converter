@@ -3,10 +3,10 @@ import subprocess
 
 import pytest
 
-from vestfold_converter.engine import MediaEngine
-from vestfold_converter.models import MediaError
-from vestfold_converter.process import CREATE_FLAGS
-from vestfold_converter.storage import bundled_tools
+from vestfold_converter.core.engine import MediaEngine
+from vestfold_converter.core.models import MediaError
+from vestfold_converter.core.process import CREATE_FLAGS
+from vestfold_converter.core.storage import bundled_tools
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 

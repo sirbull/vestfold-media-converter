@@ -9,8 +9,8 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
-from .models import MediaError
-from .process import capture
+from ..core.models import MediaError
+from ..core.process import capture, powershell
 
 SEARCH_LIMIT = 200
 MEDIA_FILTERS = (
@@ -199,14 +199,8 @@ try {
 }
 ConvertTo-Json -InputObject @($paths.ToArray()) -Compress
 """.replace("__QUERY__", encoded).replace("__LIMIT__", str(SEARCH_LIMIT + 1))
-    powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / (
-        "System32/WindowsPowerShell/v1.0/powershell.exe"
-    )
     try:
-        raw = capture(
-            [str(powershell), "-NoProfile", "-NonInteractive", "-Command", script], cancel, timeout=22
-        )
-        data = json.loads(raw)
+        data = json.loads(capture(powershell(script), cancel, timeout=22))
     except MediaError as exc:
         if "0x80041607" in str(exc):
             raise MediaError(

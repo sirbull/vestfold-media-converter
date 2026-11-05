@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pytest
 
-from vestfold_converter.engine import build_command, parse_capabilities
-from vestfold_converter.models import ExportSettings, MediaError, MediaInfo, Stream
-from vestfold_converter.probe import parse_probe
-from vestfold_converter.profiles import (
+from vestfold_converter.core.engine import build_command, parse_capabilities
+from vestfold_converter.core.models import ExportSettings, MediaError, MediaInfo, Stream
+from vestfold_converter.core.probe import parse_probe
+from vestfold_converter.core.profiles import (
     AUDIO_CODECS,
     CONTAINERS,
     VIDEO_CODECS,

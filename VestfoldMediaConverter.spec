@@ -3,9 +3,9 @@ from pathlib import Path
 
 root = Path(SPECPATH)
 licenses = root / 'build' / 'licenses'
+# Dokumentasjonen kopieres til programmappens rot av scripts/build.ps1.
 datas = [(str(licenses), 'licenses'), (str(root / 'vendor/ffmpeg/origin.json'), 'vendor/ffmpeg'),
-         (str(root / 'README.md'), 'docs'), (str(root / 'IT-GODKJENNING.md'), 'docs'),
-         (str(root / 'docs'), 'docs'), (str(root / 'LICENSE'), 'licenses'),
+         (str(root / 'LICENSE'), 'licenses'),
          (str(root / 'src/vestfold_converter/assets'), 'vestfold_converter/assets')]
 binaries = [(str(root / 'vendor/ffmpeg/bin' / name), 'vendor/ffmpeg/bin')
             for name in ('ffmpeg.exe', 'ffprobe.exe')]

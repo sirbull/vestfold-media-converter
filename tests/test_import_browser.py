@@ -6,11 +6,11 @@ import pytest
 from PySide6.QtCore import QItemSelectionModel, QPoint, QRect, Qt, QTimer
 from PySide6.QtWidgets import QApplication, QDialog
 
-from vestfold_converter.appearance import DARK, stylesheet
-from vestfold_converter.import_browser import ImportBrowser, SelectionProbe
-from vestfold_converter.models import Cancelled, MediaError
-from vestfold_converter.ui import MainWindow
-from vestfold_converter.windows_search import SearchCriterion, SearchMatches
+from vestfold_converter.core.models import Cancelled, MediaError
+from vestfold_converter.system.search import SearchCriterion, SearchMatches
+from vestfold_converter.ui.import_browser import ImportBrowser, SelectionProbe
+from vestfold_converter.ui.main_window import MainWindow
+from vestfold_converter.ui.theme import DARK, stylesheet
 
 SELECT = QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows
 
@@ -141,7 +141,7 @@ def test_browser_controls_fit_small_window(qtbot, browser, width, height):
 def test_native_picker_passes_paths_and_cleans_up(qtbot, browser, monkeypatch):
     path = str(Path(browser.current_directory) / "a.mp4")
     monkeypatch.setattr(
-        "vestfold_converter.import_browser.QFileDialog.getOpenFileNames", lambda *args: ([path], "")
+        "vestfold_converter.ui.import_browser.QFileDialog.getOpenFileNames", lambda *args: ([path], "")
     )
     qtbot.mouseClick(browser.native, Qt.MouseButton.LeftButton)
     assert browser.files == [Path(path)]
@@ -151,7 +151,7 @@ def test_native_picker_passes_paths_and_cleans_up(qtbot, browser, monkeypatch):
 def test_cancel_native_picker_restores_selected_preview(qtbot, browser, monkeypatch):
     select(browser, "a.mp4")
     monkeypatch.setattr(
-        "vestfold_converter.import_browser.QFileDialog.getOpenFileNames", lambda *args: ([], "")
+        "vestfold_converter.ui.import_browser.QFileDialog.getOpenFileNames", lambda *args: ([], "")
     )
     qtbot.mouseClick(browser.native, Qt.MouseButton.LeftButton)
     qtbot.waitUntil(lambda: not browser.preview.canvas.image.isNull(), timeout=20000)

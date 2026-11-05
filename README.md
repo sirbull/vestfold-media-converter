@@ -1,62 +1,200 @@
 # Vestfold Media Converter
 
-Vestfold Media Converter (VMC) er en portabel Windows-app for lyd og video. Grensesnittet er på norsk, med engelske fagord der det er naturlig. Bygget med Python 3.12, PySide6/Qt Widgets og medfølgende FFmpeg/FFprobe.
+**Portabel konvertering av video og lyd for Windows, med norsk grensesnitt og uten installasjon.**
 
-Grensesnittet bruker Nunito, papirfargede flater og rødt/gult fra Vestfold-våpenskjoldet. Konvertering har en tydelig rød hovedknapp. Fonten følger med programmet og fungerer offline uten installasjon på Windows.
+![Hovedvinduet i Vestfold Media Converter med fem filer i konverteringskøen og forhåndsvisning av en video](docs/bilder/hovedvindu-lyst.png)
 
-Teksten tegnes med FreeType og kantutjevning på Windows. Ikonene tegnes som vektorer i skjermens faktiske oppløsning, også ved 125 og 150 prosent skalering. Dette endrer ingen Windows-innstillinger.
+Vestfold Media Converter (VMC) gjør video- og lydfiler om til formater som virker overalt, uten at brukeren trenger å kunne noe om kodeker. Dra inn filene og trykk **Konverter**. Programmet velger en trygg standard for hver fil: MP4 for video og MP3 for lyd. Du kan også velge en annen profil eller justere detaljene selv.
 
-Øverst velges tema med tre ikoner: skjerm for systemtema, sol for lyst og måne for mørkt. Valgt ikon er markert. Pek på et ikon for forklaring; piltastene kan også brukes til å bytte tema.
+Typiske eksempler er videoopptak fra kamera (MTS/M2TS), skjermopptak, intervjuer i MOV eller AVI og lydopptak i WAV som skal deles, publiseres eller lastes opp.
 
-Ved oppstart tilpasses vinduet automatisk til skjermens tilgjengelige arbeidsflate, inkludert Windows-skalering og plass til oppgavelinjen. På lave skjermer brukes et mer kompakt oppsett, slik at import, målmappe og konverteringsknapp er synlige uten maksimering. Faktisk skjermtilpasning kan kontrolleres med `uv run --frozen --offline python scripts/check_window_layout.py`.
+| | |
+|---|---|
+| **Versjon** | 1.0.0 |
+| **Plattform** | Windows x64. Portabel programmappe, ingen installasjon. |
+| **Rettigheter** | Kjører som vanlig bruker. Krever ikke administrator. |
+| **Nettverk** | Ingen. Ingen telemetri, oppdateringssjekk eller skytjenester. |
+| **Avhengigheter** | Ingen hos brukeren. Python, Qt, FFmpeg og fonten følger med i mappen. |
+| **Språk** | Norsk (bokmål), med vanlige engelske fagord. |
+| **Lisens** | GPL-3.0-or-later |
 
-Små geometriske detaljer og lyse naturtoner er inspirert av fylkeskommunens designmanual. Se [visuell retning](docs/DESIGN.md) for kilder og tilpasninger.
+## Slik brukes programmet
 
-## Bruk
-
-1. Åpne `VestfoldMediaConverter.exe` fra den komplette programmappen.
-2. Dra inn en fil, flere filer eller en mappe. Du kan også bruke importknappene.
+1. Åpne `VestfoldMediaConverter.exe` fra programmappen.
+2. Dra inn en fil, flere filer eller en hel mappe, eller bruk **Legg til filer** og **Legg til mappe**.
 3. Trykk **Konverter**.
 
-Video får automatisk **MP4 – Anbefalt** (H.264, CRF 21, medium, AAC-LC 192 kbit/s, yuv420p, faststart). Lyd får **MP3 – Anbefalt** ved 192 kbit/s. En MTS-fil med AC-3 blir dermed MP4 med H.264/AAC. En WAV-fil blir MP3. Albumgrafikk gjør ikke en lydfil til video.
+Ferdige filer lagres i `Dokumenter\Mediekonverter`. Mappen kan endres med **Endre mappe**, og **Åpne målmappe** viser resultatet i Utforsker. Originalfilene endres aldri.
 
-Resultatene lagres i Windows sin Dokumenter-mappe under `Mediekonverter`. **Velg målmappe** endrer dette. Originalene beholdes alltid. Ved navnekonflikt brukes `navn (1).mp4`, `navn (2).mp4` osv. FFmpeg skriver til en midlertidig fil i målmappen; bare verifiserte resultater får endelig navn. **Avbryt** stopper den aktuelle jobben og beholder allerede fullførte resultater.
+| Kilde | Blir som standard |
+|---|---|
+| Video | **MP4 · H.264** (CRF 21, AAC-LC 192 kbit/s, yuv420p, faststart) |
+| Video i 4K eller større | **MP4 · H.265** (CRF 24) |
+| Lyd | **MP3** (192 kbit/s) |
 
-**Legg til filer**, importfeltet og Ctrl+O åpner en filbrowser. Marker en video for forhåndsvisning til høyre, med avspilling uten lyd og en tidslinje. Dra mellom fillisten og forhåndsvisningen for å endre størrelsen; musepekeren viser hvor du kan dra. Små ikoner over fillisten bytter mellom liste og rutenett og beholder markeringen når du bytter. Ctrl/Shift velger flere filer; **Importer valgte** legger dem i konverteringskøen. Dobbeltklikk åpner en mappe eller importerer valgte filer.
+En MTS-fil med AC-3-lyd blir dermed en MP4 med H.264 og AAC, og en WAV-fil blir MP3. Albumgrafikk gjør ikke en lydfil til video.
 
-Browseren henter mappesnarveier fra Windows Hurtigtilgang i bakgrunnen. Den viser også standardmapper og stasjoner. **Utforsker …** åpner Windows sin vanlige filvelger med hele systemets navigasjon. Hvis Hurtigtilgang ikke kan leses, vises en melding og Utforsker-knappen fungerer fortsatt. Visningsvalget og panelbreddene huskes; filvalg og mappestier fra browseren lagres ikke. **Legg til mappe** bruker fortsatt systemets mappevelger.
+## Funksjoner
 
-Øverst vises mappestien som klikkbare deler, med ikoner for tilbake, frem og opp én mappe. Klikk på et mappenavn for å hoppe dit. Når en sti er for lang, viser **…** hele stien og en meny med alle overordnede mapper. Det samme gjelder filstien nederst når en fil er markert. **Ctrl+L** åpner et adressefelt der du kan lime inn en sti; Enter åpner den, og Escape viser mappedelene igjen.
+### Import og filbrowser
 
-Søkefeltet over fillisten søker etter filnavn i Windows Search i mappen du står i, med undermapper: skriv et navn eller en del av navnet og trykk Enter eller på søkeikonet. Etter søket kan du velge **Denne PC-en** for å søke på hele maskinen, og **+** legger til kriterier som type (video/lyd), filtype, størrelse, endringsdato og navn, slik som i Finder på macOS. En valgt filtype, for eksempel jpg, overstyrer mediefilteret. Treff kan forhåndsvises og importeres, og **Vis mappe** åpner mappen til det markerte treffet. Tøm søkefeltet for å gå tilbake til vanlig mappevisning. Søket viser opptil 200 treff fra Windows-indeksen; filer i mapper som ikke er indeksert, blir ikke funnet. **Vis alle filtyper** utvider søket fra medier til alle filer. Søkeord og søkeresultater lagres ikke.
+- Dra og slipp filer og mapper rett inn i vinduet.
+- Innebygd filbrowser (**Ctrl+O**) med liste- og rutenettvisning, forhåndsvisning av markert video og flervalg med Ctrl/Shift.
+- Klikkbar mappesti med tilbake, frem og opp én mappe. **Ctrl+L** åpner et adressefelt der du kan lime inn en sti.
+- Snarveier fra Windows Hurtigtilgang, standardmapper og stasjoner. **Utforsker …** åpner den vanlige Windows-filvelgeren.
+- Filnavnsøk i Windows Search-indeksen, i gjeldende mappe eller på hele PC-en. Søket kan avgrenses på type, filtype, størrelse, endringsdato og navn.
+- Som standard vises bare mediefiler. **Vis alle filtyper** viser alle filer.
 
-Køen viser type, originalformat, varighet, størrelse, profil og status. Velg en rad for å se filen i forhåndsvisningen ved siden av. Ctrl/Shift eller Ctrl+A velger flere rader. Profilvalg gjelder valgte rader; **Konverter** behandler alle ufullførte, gyldige rader. Dobbeltklikk eller **Detaljer** viser feil og filstier. Ctrl+O importerer; Delete fjerner valgte rader fra køen.
+### Konverteringskø
 
-Medietype, originalformat og varighet vises under filnavnet. Statusmerker og fremdrift vises til høyre; filhandlingene ligger under køen. Målmappe og konverteringsknappen er samlet nederst.
+- Viser filnavn, medietype, originalformat, varighet, størrelse, eksportprofil og status for hver fil.
+- Flere filer konverteres i rekkefølge, med fremdrift per fil.
+- Profilvalg gjelder de valgte radene, så filer i samme kø kan få ulike formater.
+- **Avbryt** stopper jobben som pågår. Filer som allerede er ferdige, beholdes.
+- **Detaljer** viser filstier og eventuelle feilmeldinger. **Delete** fjerner valgte rader.
 
-Sidepanelet har fanene **Forhåndsvisning** og **Eksportvalg**. Eksportvalg-knappen under køen åpner innstillingene. På små skjermer forenkles kolonnene slik at filliste og forhåndsvisning fortsatt kan stå ved siden av hverandre.
+### Forhåndsvisning
 
-## Forhåndsvisning
+- Video vises uten lyd, med avspilling, hopp på fem sekunder og en tidslinje.
+- Lydfiler kan spilles av med lyd gjennom Windows sin innebygde lydutgang.
+- Forhåndsvisningen dekodes av den medfølgende FFmpeg og bruker ikke kodeker som er installert i Windows. Den er begrenset til 640 × 360 og 12 bilder/s for å spare ressurser, og ingenting lagres på disk.
 
-Velg en videofil i køen for å se et bilde fra kilden. Avspillingsknappen veksler mellom et playikon og et pauseikon og styrer enkel avspilling uten lyd. Pilene på hver side hopper fem sekunder bakover eller fremover og fortsetter avspillingen hvis videoen allerede spiller. Tidslinjen lar deg velge et annet tidspunkt. Dette virker også når en hel mappe eller mange filer er importert; valgt rad bestemmer hvilken fil som vises.
+### Eksportvalg
 
-Forhåndsvisningen dekodes i bakgrunnen med medfølgende FFmpeg, uten Windows-kodeker, nettverk eller ekstra avhengigheter. Den bruker opptil 640 × 360 og 12 bilder/s for å begrense ressursbruken. Original oppløsning og bildefrekvens ved eksport påvirkes ikke. Ingen forhåndsvisningsfiler lagres på disk. Ved filbytte avbrytes den tidligere dekodingen; ved lukking stoppes prosessen. Lydfiler viser filinformasjon. HDR-forhåndsvisning er foreløpig ikke støttet.
+![Eksportvalg i mørkt tema, med eksportprofil og avanserte innstillinger](docs/bilder/eksportvalg-morkt.png)
 
-## Avansert bruk
+- Ferdige profiler for vanlige behov. Se [Støttede formater](#støttede-formater).
+- **Avanserte innstillinger** gir kontroll over container, kodek, kvalitet/bitrate, preset, oppløsning, bildefrekvens, sideforhold, deinterlacing, pikselformat, lydspor, samplingsfrekvens, mono/stereo og bitdybde.
+- Bare kombinasjoner av container og kodek som faktisk virker, kan velges.
+- Maskinvarekoding med NVIDIA (NVENC), Intel (Quick Sync) og AMD (AMF) vises når FFmpeg støtter det. Det krever fungerende grafikkort og driver. Hvis koding med grafikkortet feiler, får brukeren en forklaring. Programmet bytter aldri til CPU av seg selv.
 
-**Avanserte innstillinger** er lukket ved oppstart. Endringer her tas i bruk med **Bruk innstillinger på valgte filer**. Ferdige profiler brukes straks de velges. Ved blandet utvalg kan «Anbefalt» sette en egen passende standard per fil. Andre felles innstillinger brukes bare når hele utvalget er kompatibelt.
+### Utseende
 
-- Video: MP4, MOV, MKV, WebM, AVI; H.264, HEVC, AV1, VP9, ProRes, MPEG-4 Part 2 og kompatibel stream copy.
-- Lyd: MP3, WAV, FLAC, M4A/AAC, Opus, OGG/Vorbis, AIFF og ALAC. Video med lyd kan også eksporteres til disse.
-- Juster kvalitet/bitrate, preset, oppløsning, bildefrekvens, sideforhold, deinterlacing, pikselformat, lydspor, samplingsfrekvens, mono/stereo og støttet bitdybde.
-- Bare tilgjengelige encodere og godkjente containerkombinasjoner vises. ProRes-profilen velger MOV og 10-bit 4:2:2. PCM-bitdybde velges gjennom lydkodeken.
-- NVIDIA/Intel/AMD-encodere vises hvis FFmpeg inneholder dem. De krever fungerende GPU og driver. Ved feil forklares dette; velg CPU-profil og prøv igjen. Ingen automatisk kvalitetsendring/fallback.
+- Lyst, mørkt eller systemets tema, valgt med tre ikoner øverst til høyre.
+- Farger fra Vestfold-våpenskjoldet og fonten Nunito, som følger med programmet. Se [visuell retning](docs/DESIGN.md).
+- Skarp tekst og skarpe ikoner ved 100, 125 og 150 % skalering i Windows.
+- Vinduet tilpasser seg skjermen ved oppstart. På lave skjermer brukes et mer kompakt oppsett.
 
-Original bildefrekvens og oppløsning beholdes som standard. FFmpeg håndterer rotasjon. Kjent interlaced video deinterlaces automatisk med `bwdif` ved samme bildefrekvens. SDR-fargetagger føres videre. Odde dimensjoner får maksimalt én ekstra piksel i hver retning for kompatibel 4:2:0. HDR krever eksplisitt 10-bit HEVC/AV1/VP9 eller stream copy; automatisk HDR til SDR inngår ikke. Flere lydspor reduseres til valgt standardspor, og flerkanalslyd nedmikses til stereo. Ingen kunstig lyd genereres. Undertekster, vedlegg og ekstra videostrømmer eksporteres ikke i MVP-en.
+## Støttede formater
 
-## Kjør fra kildekode
+### Inn
 
-På Windows x64, med [uv](https://docs.astral.sh/uv/) og nettverk under klargjøring:
+Programmet kan lese alt den medfølgende FFmpeg-versjonen kan dekode. Filbrowseren og søket viser disse filtypene:
+
+| Type | Filendelser |
+|---|---|
+| Video | MP4, MOV, MKV, AVI, WebM, MTS, M2TS, TS, MXF, MPG, MPEG, M4V, WMV, 3GP, VOB, FLV |
+| Lyd | WAV, MP3, FLAC, M4A, AAC, Opus, OGG, AIF, AIFF, WMA, ALAC |
+
+### Ut: ferdige profiler
+
+| Profil | Format | Passer til |
+|---|---|---|
+| MP4 · H.264 – Anbefalt | MP4, H.264 + AAC | Deling og avspilling overalt |
+| MP4 · H.265 – mindre fil | MP4, HEVC + AAC | Arkiv og store filer |
+| MP4 · høy kvalitet | MP4, H.264/HEVC, preset *slow* | Når kvalitet er viktigere enn filstørrelse |
+| WebM · VP9 | WebM, VP9 + Opus | Nett |
+| MOV · ProRes 422 – redigering | MOV, ProRes 422 10-bit + PCM 24-bit | Videoredigering |
+| Rask konvertering | Bytter container uten ny koding (stream copy) | Når kodeken allerede passer |
+| Kun lyd | MP3 eller WAV | Hente ut lyden fra en video |
+| MP3 – Anbefalt | MP3, 192 kbit/s | Lyd, bred kompatibilitet |
+| M4A · AAC | M4A | Apple og mobil |
+| FLAC · tapsfri | FLAC, 24-bit | Arkiv uten kvalitetstap |
+| M4A · ALAC tapsfri | M4A, Apple Lossless | Tapsfritt for Apple-enheter |
+| OGG · Vorbis / Opus | OGG, Opus | Åpne formater, tale og nett |
+| WAV · 16/24-bit, AIFF | Ukomprimert PCM | Lydredigering |
+
+### Ut: avanserte innstillinger
+
+- **Videocontainere:** MP4, MOV, MKV, WebM, AVI
+- **Videokodeker:** H.264, HEVC/H.265, AV1, VP9, ProRes, MPEG-4 Part 2, stream copy, og H.264/HEVC med grafikkort når det er tilgjengelig
+- **Lydformater:** MP3, WAV, FLAC, M4A/AAC, Opus, OGG/Vorbis, AIFF, ALAC. Video med lyd kan også eksporteres til disse.
+
+### Hva skjer med videoen
+
+- Oppløsning og bildefrekvens beholdes som standard, og rotasjon fra mobilopptak følges.
+- Linjeflettet (interlaced) video gjøres om til progressiv video automatisk med `bwdif`, med samme bildefrekvens.
+- Fargeinformasjon for vanlig video (SDR) føres videre. Odde bildemål får maksimalt én ekstra piksel for kompatibel 4:2:0.
+- HDR krever at brukeren velger 10-bit HEVC, AV1 eller VP9, eller stream copy. Programmet gjør ikke HDR om til SDR automatisk.
+- Ved flere lydspor eksporteres det valgte standardsporet. Flerkanalslyd mikses ned til stereo. Programmet legger aldri til kunstig lyd.
+- Undertekster, vedlegg og ekstra videostrømmer eksporteres ikke i denne versjonen.
+
+## Sikkerhet og datahåndtering
+
+- **Ingen nettverk:** Programmet kobler seg aldri til internett. FFmpeg startes med bare `file`- og `pipe`-protokollene tillatt i forhåndsvisningen.
+- **Ingen systemendringer:** Programmet skriver ikke til registeret, installerer ingen tjenester, endrer ingen Windows-innstillinger og ber ikke om administratorrettigheter.
+- **Kontrollerte prosesser:** FFmpeg og FFprobe startes direkte fra programmappen, uten shell og uten oppslag i PATH, og uten synlig konsollvindu.
+- **Trygg lagring:** FFmpeg skriver først til en midlertidig fil. Resultatet kontrolleres med FFprobe (riktige strømmer, kodeker og varighet) før filen får sitt endelige navn. Finnes navnet fra før, brukes `navn (1).mp4`, `navn (2).mp4` osv. Ingenting overskrives.
+- **Lite lagret:** Bare tema, målmappe og visningsvalg i filbrowseren lagres, i `%LOCALAPPDATA%\VestfoldMediaConverter\settings.json`. Filstier, køer, søkeord og søkeresultater lagres ikke mellom kjøringer.
+- **Kun lesing fra Windows:** Hurtigtilgang og Windows Search-indeksen leses, men endres ikke.
+- **Sporbar FFmpeg:** FFmpeg er låst til én versjon og kontrolleres med SHA-256 når den hentes til bygget. Programmet laster aldri ned noe selv.
+
+## Teknisk oppbygging
+
+| Del | Teknologi |
+|---|---|
+| Språk | Python 3.12 |
+| Grensesnitt | Qt 6 Widgets via PySide6 Essentials (uten WebEngine og Qt Multimedia) |
+| Mediemotor | FFmpeg 9.0.2 og FFprobe (Gyan-bygg, GPLv3, med libx264 og libx265) |
+| Lydavspilling | Windows sin innebygde lydutgang (winmm) via `ctypes` |
+| Windows-integrasjon | Shell (Hurtigtilgang, Known Folders) og Windows Search, kun lesing |
+| Font | Nunito (SIL Open Font License), gjengitt med FreeType |
+| Pakking | PyInstaller, portabel mappe med EXE og manifest (asInvoker, PerMonitorV2 DPI, lange stier) |
+| Avhengighetsstyring | uv med låst `uv.lock` |
+| Kvalitet | pytest, pytest-qt og Ruff. CI på GitHub Actions (Windows) |
+
+```mermaid
+flowchart LR
+    Bruker([Bruker]) --> UI["ui/<br/>Qt Widgets-grensesnitt"]
+    UI --> Core["core/<br/>analyse, profiler,<br/>konvertering, lagring"]
+    UI --> Sys["system/<br/>Hurtigtilgang og<br/>Windows Search"]
+    Core -->|"analyse"| FFprobe[[FFprobe]]
+    Core -->|"konvertering og<br/>forhåndsvisning"| FFmpeg[[FFmpeg]]
+    Core --> Mal[("Målmappe")]
+```
+
+Grensesnittet (`ui/`) snakker med medielogikken (`core/`), som ikke vet noe om Qt-vinduene. Analyse og konvertering kjører i bakgrunnstråder, så vinduet svarer mens jobber pågår. Hver fil analyseres med FFprobe og klassifiseres. Deretter velger en eksplisitt kompatibilitetsmodell hvilke profiler og kodeker som er tillatt for akkurat den filen. FFmpeg kjøres som en avbrytbar underprosess, med fremdrift lest fra `-progress`.
+
+### Prosjektstruktur
+
+```text
+src/vestfold_converter/
+  app.py               Oppstart
+  assets/              Programikon, SVG-ikoner og Nunito-fonten
+  core/                Medielogikk uten grensesnitt
+    models.py          Medieinformasjon, kø og eksportinnstillinger
+    probe.py           FFprobe-analyse og klassifisering
+    profiles.py        Profiler og eksplisitt kompatibilitetsmodell
+    engine.py          Kommandoer, konvertering, fremdrift og resultatkontroll
+    playback.py        Dekoding av forhåndsvisning og lydavspilling
+    process.py         Avbrytbare bakgrunnsprosesser uten shell
+    storage.py         Målmapper, JSON-innstillinger og trygg publisering
+    workers.py         Analyse og sekvensiell batch i Qt-tråd
+    background.py      Avbrytbar arbeider der siste forespørsel vinner
+  system/              Lesing fra Windows
+    places.py          Hurtigtilgang fra Utforsker
+    search.py          Filnavnsøk i Windows Search-indeksen
+  ui/                  Qt Widgets-grensesnitt
+    main_window.py     Hovedvindu, kø og målmappe
+    settings_panel.py  Eksportprofil og avanserte innstillinger
+    import_browser.py  Filbrowser med forhåndsvisning og søk
+    preview.py         Forhåndsvisning av video og lyd
+    details.py         Fildetaljer
+    path_bar.py        Klikkbar mappesti
+    search_options.py  Søkekriterier
+    theme.py           Farger, stilark og typografi
+    icons.py           Tegnede linjeikoner
+    widgets.py         Egne widgeter og køvisning
+scripts/               Verifisert FFmpeg-henting, bygg og distribusjonsinventar
+tests/                 Enhetstester, ekte FFmpeg-tester og Qt-flyter
+vendor/ffmpeg/         Fast versjon av FFmpeg/FFprobe og opprinnelsesdata
+```
+
+## Utvikling
+
+### Kjør fra kildekode
+
+Krever Windows x64 og [uv](https://docs.astral.sh/uv/). Det trengs nettverk første gang miljøet settes opp:
 
 ```powershell
 uv sync --frozen --extra dev
@@ -64,19 +202,15 @@ uv sync --frozen --extra dev
 uv run python -m vestfold_converter
 ```
 
-`uv` henter Python 3.12 ved behov. Prosjektet trenger bare PySide6 Essentials, som inneholder Qt Widgets; WebEngine og Qt Multimedia brukes ikke. FFmpeg lastes ned **kun av utviklingsskriptet**, aldri av appen. Hentingen er låst til en bestemt versjon og SHA-256. Et allerede nedlastet arkiv kan brukes med `-Archive C:\sti\ffmpeg.zip`. Appen søker aldri etter FFmpeg i PATH.
-
-Hvis `uv` sin Python-starter feiler på utviklingsmaskinen, kan standard `python -m venv .venv --upgrade` brukes med den installerte Python 3.12-tolken. Organisasjonens sikkerhetspolicy skal følges; en blokkert applikasjon skal godkjennes av IT.
-
-Når miljøet er klargjort, kan grensesnittet testes direkte fra prosjektmappen uten den pakkede EXE-filen eller nye nedlastinger:
+`uv` henter Python 3.12 ved behov. `fetch_ffmpeg.ps1` henter den låste FFmpeg-versjonen og kontrollerer SHA-256. Et arkiv som allerede er lastet ned, kan brukes med `-Archive C:\sti\ffmpeg.zip`. Når miljøet er klart, kan programmet startes uten nettverk:
 
 ```powershell
 uv run --frozen --offline python -m vestfold_converter
 ```
 
-Dette åpner det vanlige programvinduet fra Python. Lukk vinduet for å avslutte. FFmpeg og FFprobe i prosjektets `vendor`-mappe brukes fortsatt til analyse og konvertering.
+Hvis Python-starteren til `uv` feiler på maskinen, kan `python -m venv .venv --upgrade` brukes med en installert Python 3.12.
 
-## Tester og bygg
+### Tester og bygg
 
 ```powershell
 uv run python -m pytest -q
@@ -84,35 +218,14 @@ uv run ruff check src tests scripts
 .\scripts\build.ps1
 ```
 
-Integrasjonstestene genererer små mediefiler lokalt med den medfølgende FFmpeg-bygningen. Uten FFmpeg blir de hoppet over ved vanlig utvikling. Byggskript og CI setter `VMC_REQUIRE_FFMPEG=1`, slik at manglende verktøy gir feil. Se [testomfang](docs/TESTING.md) og [testresultat](docs/TESTRESULTAT.md).
+Testene dekker analyse, profiler og kompatibilitet, ekte konverteringer med medfølgende FFmpeg, avbrudd og opprydding, forhåndsvisning, importbrowser, Windows-søk og Qt-flytene i hovedvinduet. Mediefilene lages lokalt i en midlertidig mappe fra pytest, og ingen nettverk brukes. Uten FFmpeg hoppes integrasjonstestene over ved vanlig utvikling. Byggskriptet og CI setter `VMC_REQUIRE_FFMPEG=1`, så manglende verktøy gir feil.
 
-PyInstaller lager `dist/VestfoldMediaConverter/` med EXE, `_internal`-mappe, dokumentasjon, lisenser, applikasjonens kildearkiv, `BUILD-INFO.json` og `SHA256SUMS.txt`. **Hele mappen** må kopieres. Ingen Python-installasjon trengs hos brukeren. `-SkipTests` er kun for lokal iterasjon etter en bestått testkjøring. `-SigningCertificateThumbprint` signerer appen med et eksisterende sertifikat i brukerens sertifikatlager før kontrollsummer beregnes.
+`build.ps1` kjører testene og lager `dist/VestfoldMediaConverter/` med EXE, `_internal`-mappe, dokumentasjon, lisenser, applikasjonens kildearkiv, `BUILD-INFO.json` og `SHA256SUMS.txt`. **Hele mappen** må kopieres for at programmet skal virke. `-SkipTests` er kun ment for lokal utprøving etter at testene har bestått. `-SigningCertificateThumbprint` signerer programmet med et eksisterende sertifikat før kontrollsummene beregnes.
 
-Programmet bruker ingen nettverkstjenester, telemetri, registerlagring, systemtjenester eller administratorrettigheter. Tema og sist valgte målmappe lagres i `%LOCALAPPDATA%/VestfoldMediaConverter/settings.json`. Kildestier og køhistorikk lagres ikke mellom kjøringer.
+## Lisens
 
-## Prosjektstruktur
+Applikasjonens kildekode er **GPL-3.0-or-later**, se [LICENSE](LICENSE). Den medfølgende Gyan-bygningen av FFmpeg er **GPLv3** (`--enable-gpl`, `--enable-version3`, libx264 og libx265), ikke en LGPL-bygning. Qt/PySide6 har egne LGPL/GPL-lisenser og tredjepartsvilkår. Nunito er lisensiert under SIL Open Font License.
 
-```text
-src/vestfold_converter/
-  models.py        Medieinformasjon, kø og eksportinnstillinger
-  probe.py         FFprobe-analyse og klassifisering
-  profiles.py      Profiler og eksplisitt kompatibilitetsmodell
-  engine.py        Kommandoer, konvertering, fremdrift og resultatkontroll
-  process.py       Avbrytbare bakgrunnsprosesser uten shell
-  storage.py       Målmapper, JSON-innstillinger og trygg publisering
-  workers.py       Analyse og sekvensiell batch i Qt-tråd
-  ui.py            Qt Widgets-grensesnitt
-  app.py           Oppstart
-scripts/           Verifisert FFmpeg-henting, bygg og distribusjonsinventar
-tests/             Enhetstester, ekte FFmpeg-tester og Qt-flyter
-vendor/ffmpeg/     Fast versjon av FFmpeg/FFprobe og opprinnelsesdata
-```
+Programikonet (rødt skjold med gul avspillingsknapp) er en egen profilressurs. Original SVG ligger uendret i `src/vestfold_converter/assets/vmc-ikon.svg`. EXE-ikonet lages fra samme SVG under bygging. GPL-merkingen gjelder applikasjonens egen kildekode.
 
-## Lisens og distribusjonsstatus
-
-Applikasjonens kildekode er **GPL-3.0-or-later**, se [LICENSE](LICENSE). Den valgte Gyan-bygningen av FFmpeg er **GPLv3**, med `--enable-gpl`, `--enable-version3`, libx264 og libx265. Den er ikke en LGPL-bygning. Qt/PySide6 har egne LGPL/GPL-lisenser og tredjepartsvilkår.
-
-Programikonet (rødt skjold med gul avspillingsknapp) er et separat, brukerlevert profilasset. Original SVG er bevart uendret i `src/vestfold_converter/assets/vmc-ikon.svg`, inkludert originalfargene. QtSvg rendrer ikonet i vinduet med riktig skalering. EXE-ikonet (`build/vmc-ikon.ico`) lages fra samme SVG under bygging. Appens GPL-merking gjelder egen kildekode.
-
-Den portable mappen er et teknisk testbygg. Før den deles videre må ansvarlig distributør sikre tilsvarende kildekode, bygghjelpemidler og notices for den **faktiske** FFmpeg-bygningen og dens biblioteker, samt oppfylle Qt-lisensvilkårene. Applikasjonens kildekode følger med; hele kildegrunnlaget til Gyan-bygningens statiske tredjepartsbiblioteker følger ikke automatisk med. Dette er beskrevet i [IT-GODKJENNING.md](IT-GODKJENNING.md) og [lisensnotatet](docs/LICENSES.md).
-
+Før den portable mappen deles videre, må den som distribuerer den sikre tilsvarende kildekode, bygghjelpemidler og notices for den **faktiske** FFmpeg-bygningen og bibliotekene i den, og oppfylle Qt-lisensvilkårene. Applikasjonens kildekode følger med. Kildekoden til de statiske tredjepartsbibliotekene i Gyan-bygningen følger ikke automatisk med. Se [distribusjonsnotatet](IT-GODKJENNING.md) og [lisensnotatet](docs/LICENSES.md).

@@ -13,7 +13,7 @@ from pathlib import Path
 from .models import Cancelled, ExportSettings, MediaError, MediaInfo
 from .probe import probe
 from .process import CREATE_FLAGS, capture, stop_process
-from .profiles import CODEC_FAMILY, CONTAINERS, validate
+from .profiles import AUDIO_FAMILY, CODEC_FAMILY, CONTAINERS, validate
 from .storage import long_path, publish_file, safe_stem
 
 
@@ -282,8 +282,6 @@ class MediaEngine:
         if result.video and s.video_codec == "copy" and result.video.codec != source.video.codec:
             raise MediaError("Videostrømmen ble ikke kopiert som forventet.")
         if result.audio:
-            from .profiles import AUDIO_FAMILY
-
             expected = (
                 next((a.codec for a in source.audio if a.index == s.audio_stream), source.default_audio.codec)
                 if s.audio_codec == "copy"

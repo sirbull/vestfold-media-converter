@@ -1,3 +1,4 @@
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -105,4 +106,4 @@ class QueueItem:
     progress: float = 0.0
     output: Path | None = None
     error: str = ""
-    id: str = field(default_factory=lambda: __import__("uuid").uuid4().hex)
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)

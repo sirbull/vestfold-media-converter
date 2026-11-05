@@ -12,7 +12,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from vestfold_converter.process import CREATE_FLAGS
+from vestfold_converter import __version__
+from vestfold_converter.core.process import CREATE_FLAGS
 
 
 def digest(path):
@@ -121,7 +122,7 @@ def audit(folder: Path):
     }
     manifest = {
         "application": "Vestfold Media Converter",
-        "version": "0.1.0",
+        "version": __version__,
         "python": platform.python_version(),
         "platform": platform.platform(),
         "dependencies": packages,
@@ -129,7 +130,7 @@ def audit(folder: Path):
         "ffmpeg_license": license_text,
         "origin": json.loads((ROOT / "vendor/ffmpeg/origin.json").read_text()),
         "executables": [p.relative_to(folder).as_posix() for p in sorted(folder.rglob("*.exe"))],
-        "distribution_status": "Teknisk testbygg. Tilsvarende kildekode for eksterne FFmpeg-biblioteker må avklares før deling.",
+        "distribution_status": "Tilsvarende kildekode for FFmpeg-bygningens statiske biblioteker må avklares før videredistribusjon.",
     }
     (folder / "BUILD-INFO.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"

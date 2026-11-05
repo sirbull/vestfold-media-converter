@@ -18,8 +18,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .appearance import IconButton, RoundedComboBox
-from .windows_search import SearchCriterion
+from ..system.search import SearchCriterion
+from .icons import IconButton
+from .widgets import RoundedComboBox
 
 FIELDS = (
     ("Type", "kind", (("er", "is"), ("er ikke", "is_not"))),

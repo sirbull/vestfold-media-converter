@@ -8,6 +8,6 @@ Appen kombinerer en enkel mediekø med et vennlig uttrykk inspirert av [Vestfold
 - Nunito beholdes som avtalt. Fonten er også del av manualens [typografiske profil](https://www.vestfoldfylke.no/no/Designmanual/meny/Visuell-verktoykasse/typografi/).
 - Brukerens eget programikon (skjold med avspillingsknapp) beholder farger og proporsjoner. Ingen tagline legges til.
 
-Lys og mørk modus har samme hierarki. Forhåndsvisning, filvalg og eksport skal være lette å finne; dekor står aldri over kontroller eller tekst. Skjermbilder kan gjenskapes med `uv run --frozen --offline python scripts/preview.py`.
+Lys og mørk modus har samme hierarki. Forhåndsvisning, filvalg og eksport skal være lette å finne; dekor står aldri over kontroller eller tekst.
 
 Tema velges med tre ikonknapper i en samlet kontroll: skjerm, sol og måne. Ett ikon er markert med gult om gangen. Forklarende navn finnes i verktøytips og for skjermlesere, og piltastene bytter mellom valgene.

@@ -29,7 +29,7 @@ try {
     Copy-Item -LiteralPath docs -Destination dist\VestfoldMediaConverter -Recurse -Force
     & uv run --frozen python scripts/distribution.py --audit dist/VestfoldMediaConverter
     if ($LASTEXITCODE -ne 0) { throw 'Inventar/kontrollsummer feilet.' }
-    Write-Host "Portabelt testbygg: $root\dist\VestfoldMediaConverter"
+    Write-Host "Portabelt bygg: $root\dist\VestfoldMediaConverter"
     Write-Host 'Se IT-GODKJENNING.md og BUILD-INFO.json for distribusjonsforutsetninger.'
 } finally { Pop-Location }
 

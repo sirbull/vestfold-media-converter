@@ -6,10 +6,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from vestfold_converter.models import Cancelled, MediaError
-from vestfold_converter.process import CREATE_FLAGS
-from vestfold_converter.profiles import AUDIO_PRESETS, default_settings, preset_settings
-from vestfold_converter.storage import long_path
+from vestfold_converter.core.models import Cancelled, MediaError
+from vestfold_converter.core.process import CREATE_FLAGS
+from vestfold_converter.core.profiles import AUDIO_PRESETS, default_settings, preset_settings
+from vestfold_converter.core.storage import long_path
 
 pytestmark = pytest.mark.integration
 
@@ -102,7 +102,7 @@ def test_existing_names_and_source_untouched(engine, media, tmp_path):
 
 def test_low_disk_space(engine, media, tmp_path, monkeypatch):
     info = engine.analyze(media["wav"])
-    monkeypatch.setattr("vestfold_converter.engine.shutil.disk_usage", lambda _: SimpleNamespace(free=1))
+    monkeypatch.setattr("vestfold_converter.core.engine.shutil.disk_usage", lambda _: SimpleNamespace(free=1))
     with pytest.raises(MediaError, match="diskplass"):
         engine.convert(info, default_settings(info), tmp_path, threading.Event())
     assert not list(tmp_path.iterdir())

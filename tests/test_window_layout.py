@@ -4,7 +4,7 @@ import pytest
 from PySide6.QtCore import QPoint, QRect, Qt
 from PySide6.QtWidgets import QScrollBar
 
-from vestfold_converter.ui import MainWindow
+from vestfold_converter.ui.main_window import MainWindow
 
 
 @pytest.mark.parametrize("width,height", [(1280, 752), (1024, 640), (800, 560)])

@@ -4,10 +4,19 @@ import os
 import subprocess
 import threading
 import time
+from pathlib import Path
 
 from .models import Cancelled, MediaError
 
 CREATE_FLAGS = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+
+
+def powershell(script: str) -> list[str]:
+    """Windows PowerShell med absolutt sti, uten brukerprofil. Skriptet er alltid fast tekst."""
+    executable = Path(os.environ.get("SystemRoot", r"C:\Windows")) / (
+        "System32/WindowsPowerShell/v1.0/powershell.exe"
+    )
+    return [str(executable), "-NoProfile", "-NonInteractive", "-Command", script]
 
 
 def stop_process(process: subprocess.Popen) -> None:

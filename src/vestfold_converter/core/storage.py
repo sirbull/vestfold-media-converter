@@ -17,7 +17,7 @@ def long_path(path: Path) -> Path:
 
 
 def project_root() -> Path:
-    return Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+    return Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[3]))
 
 
 def bundled_tools() -> tuple[Path, Path]:

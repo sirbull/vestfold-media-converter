@@ -4,16 +4,16 @@ from dataclasses import replace
 import pytest
 from PySide6.QtCore import Qt
 
-from vestfold_converter.models import QueueItem
-from vestfold_converter.preview import (
+from vestfold_converter.core.models import QueueItem
+from vestfold_converter.core.playback import (
     AUDIO_FRAME_BYTES,
     AUDIO_RATE,
     AudioPlayer,
-    PreviewPanel,
     audio_preview_command,
 )
-from vestfold_converter.process import CREATE_FLAGS
-from vestfold_converter.ui import MainWindow
+from vestfold_converter.core.process import CREATE_FLAGS
+from vestfold_converter.ui.main_window import MainWindow
+from vestfold_converter.ui.preview import PreviewPanel
 
 
 def wait_image(qtbot, panel):

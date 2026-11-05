@@ -30,14 +30,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .appearance import IconButton
-from .background import LatestRequest
-from .models import MediaError, QueueItem
+from ..core.background import LatestRequest
+from ..core.models import MediaError, QueueItem
+from ..system.places import explorer_places
+from ..system.search import MEDIA_FILTERS, windows_search
+from .icons import IconButton
 from .path_bar import PathBar
 from .preview import PreviewPanel
 from .search_options import SearchOptions
-from .system_places import explorer_places
-from .windows_search import MEDIA_FILTERS, windows_search
 
 
 class SelectionProbe(LatestRequest):

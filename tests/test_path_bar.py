@@ -4,8 +4,8 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QWidgetAction
 
-from vestfold_converter.appearance import DARK, LIGHT, stylesheet
-from vestfold_converter.path_bar import PathBar
+from vestfold_converter.ui.path_bar import PathBar
+from vestfold_converter.ui.theme import DARK, LIGHT, stylesheet
 
 
 @pytest.mark.parametrize("colors", [LIGHT, DARK])

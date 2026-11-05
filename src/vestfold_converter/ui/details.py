@@ -39,7 +39,7 @@ CHANNELS = {1: "Mono", 2: "Stereo", 6: "5.1", 8: "7.1"}
 
 
 def duration_text(seconds):
-    seconds = int(seconds)
+    seconds = max(0, int(seconds))
     return f"{seconds // 3600:02}:{seconds // 60 % 60:02}:{seconds % 60:02}"
 
 
@@ -107,7 +107,10 @@ def _stream_section(stream):
         channels = CHANNELS.get(stream.channels, f"{stream.channels} kanaler") if stream.channels else ""
         rows += [
             ("Samplingsfrekvens", f"{stream.sample_rate / 1000:g} kHz" if stream.sample_rate else ""),
-            ("Kanaler", f"{channels} ({layout})" if layout and layout.lower() != channels.lower() else channels),
+            (
+                "Kanaler",
+                f"{channels} ({layout})" if layout and layout.lower() != channels.lower() else channels,
+            ),
             ("Bitdybde", f"{stream.bit_depth} bit" if stream.bit_depth else ""),
             ("Bitrate", _bitrate(stream.bit_rate)),
         ]
@@ -123,7 +126,9 @@ def _stream_section(stream):
 def _export_section(settings):
     video = settings.video_codec
     quality = (
-        f"CRF {settings.quality}" if settings.quality_mode == "quality" else _bitrate(settings.video_bitrate * 1000)
+        f"CRF {settings.quality}"
+        if settings.quality_mode == "quality"
+        else _bitrate(settings.video_bitrate * 1000)
     )
     return "Eksport", [
         ("Profil", settings.name),
@@ -140,8 +145,14 @@ def _export_section(settings):
             if settings.audio_codec != "copy" and not settings.audio_codec.startswith(("pcm", "flac"))
             else "",
         ),
-        ("Samplingsfrekvens", f"{settings.sample_rate / 1000:g} kHz" if settings.sample_rate else "Som kilden"),
-        ("Kanaler", CHANNELS.get(settings.channels, str(settings.channels)) if settings.channels else "Som kilden"),
+        (
+            "Samplingsfrekvens",
+            f"{settings.sample_rate / 1000:g} kHz" if settings.sample_rate else "Som kilden",
+        ),
+        (
+            "Kanaler",
+            CHANNELS.get(settings.channels, str(settings.channels)) if settings.channels else "Som kilden",
+        ),
     ]
 
 
@@ -269,7 +280,7 @@ class FileDetailsDialog(QDialog):
             label.setObjectName("detailKey")
             label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
             # Usynlige bruddpunkter lar lange stier brytes i stedet for å gjøre dialogen bredere.
-            text = QLabel(value.replace("\\", "\\​").replace("/", "/​"))
+            text = QLabel(value.replace("\\", "\\\u200b").replace("/", "/\u200b"))
             text.setObjectName("detailError" if key == "Feil" else "detailValue")
             text.setWordWrap(True)
             text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)

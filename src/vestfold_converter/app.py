@@ -6,11 +6,11 @@ from PySide6.QtCore import QLocale, QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from . import __version__
-from .appearance import configure_typography
-from .engine import MediaEngine
-from .models import MediaError
-from .storage import bundled_tools
-from .ui import MainWindow
+from .core.engine import MediaEngine
+from .core.models import MediaError
+from .core.storage import bundled_tools
+from .ui.main_window import MainWindow
+from .ui.theme import configure_typography
 
 
 def main() -> int:

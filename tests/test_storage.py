@@ -1,6 +1,6 @@
 import threading
 
-from vestfold_converter.storage import (
+from vestfold_converter.core.storage import (
     default_output,
     load_preferences,
     preferred_output,
@@ -8,7 +8,7 @@ from vestfold_converter.storage import (
     safe_stem,
     save_preferences,
 )
-from vestfold_converter.workers import import_paths
+from vestfold_converter.core.workers import import_paths
 
 
 def test_preferences_and_fallback(tmp_path):

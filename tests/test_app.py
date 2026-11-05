@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 
-from vestfold_converter.process import CREATE_FLAGS
+from vestfold_converter.core.process import CREATE_FLAGS
 
 
 def test_real_application_startup(engine, tmp_path):

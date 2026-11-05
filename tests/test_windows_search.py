@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from vestfold_converter.models import MediaError
-from vestfold_converter.windows_search import (
+from vestfold_converter.core.models import MediaError
+from vestfold_converter.system.search import (
     SEARCH_LIMIT,
     SearchCriterion,
     criterion_sql,
@@ -46,7 +46,7 @@ def test_search_transports_terms_as_data_and_bounds_results(monkeypatch):
         )
         return json.dumps(paths)
 
-    monkeypatch.setattr("vestfold_converter.windows_search.capture", capture)
+    monkeypatch.setattr("vestfold_converter.system.search.capture", capture)
     matches = windows_search(term, threading.Event(), scope=Path("C:/Medier"), criteria=criteria)
     assert len(matches.paths) == SEARCH_LIMIT
     assert matches.limited
@@ -57,7 +57,7 @@ def test_search_transports_terms_as_data_and_bounds_results(monkeypatch):
 def test_search_deduplicates_and_ignores_non_file_paths(monkeypatch):
     # ItemUrl gives the real path; the localised display path (C:\Brukere) does not exist on disk.
     data = ["file:C:/Users/ÆØÅ.mp4", "file:c:/users/æøå.mp4", r"C:\Brukere\x.mp4", "file:relative", None, ""]
-    monkeypatch.setattr("vestfold_converter.windows_search.capture", lambda *a, **kw: json.dumps(data))
+    monkeypatch.setattr("vestfold_converter.system.search.capture", lambda *a, **kw: json.dumps(data))
     matches = windows_search("æøå", threading.Event())
     assert matches.paths == (Path("C:/Users/ÆØÅ.mp4"),)
     assert not matches.limited
@@ -65,7 +65,7 @@ def test_search_deduplicates_and_ignores_non_file_paths(monkeypatch):
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows Search")
 def test_invalid_index_reply_is_reported(monkeypatch):
-    monkeypatch.setattr("vestfold_converter.windows_search.capture", lambda *a, **kw: "not JSON")
+    monkeypatch.setattr("vestfold_converter.system.search.capture", lambda *a, **kw: "not JSON")
     with pytest.raises(MediaError, match="søkeresultatene"):
         windows_search("video", threading.Event())
 
@@ -75,7 +75,7 @@ def test_index_timeout_gets_a_helpful_message(monkeypatch):
     def capture(*args, **kwargs):
         raise MediaError("Kunne ikke lese mediet. Exception from HRESULT: 0x80041607")
 
-    monkeypatch.setattr("vestfold_converter.windows_search.capture", capture)
+    monkeypatch.setattr("vestfold_converter.system.search.capture", capture)
     with pytest.raises(MediaError, match="for lang tid"):
         windows_search("e", threading.Event())
 

@@ -3,16 +3,11 @@ from PySide6.QtCore import QPoint, QSize, Qt
 from PySide6.QtGui import QIcon, QImage
 from PySide6.QtWidgets import QComboBox, QStyle, QStyleOptionComboBox
 
-from vestfold_converter.appearance import (
-    DARK,
-    RoundedComboBox,
-    ThemeSwitcher,
-    configure_typography,
-    line_icon,
-    stylesheet,
-)
-from vestfold_converter.storage import load_preferences, save_preferences
-from vestfold_converter.ui import DropArea, MainWindow
+from vestfold_converter.core.storage import load_preferences, save_preferences
+from vestfold_converter.ui.icons import line_icon
+from vestfold_converter.ui.main_window import DropArea, MainWindow
+from vestfold_converter.ui.theme import DARK, configure_typography, stylesheet
+from vestfold_converter.ui.widgets import RoundedComboBox, ThemeSwitcher
 
 
 def test_drop_action_and_outer_area_each_request_import_once(qtbot):
@@ -49,8 +44,10 @@ def test_copied_line_icon_keeps_disabled_state_and_transparency(qapp):
     icon = QIcon(line_icon("play", "#ffffff"))
     icon.setIsMask(True)  # Detach the copy, as Qt does when changing icon properties.
     normal = icon.pixmap(QSize(24, 24), 1.5).toImage().convertToFormat(QImage.Format.Format_RGBA8888)
-    disabled = icon.pixmap(QSize(24, 24), 1.5, QIcon.Mode.Disabled).toImage().convertToFormat(
-        QImage.Format.Format_RGBA8888
+    disabled = (
+        icon.pixmap(QSize(24, 24), 1.5, QIcon.Mode.Disabled)
+        .toImage()
+        .convertToFormat(QImage.Format.Format_RGBA8888)
     )
     assert max(memoryview(normal.constBits())[3::4]) > 200
     assert not disabled.isNull()

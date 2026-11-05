@@ -1,6 +1,6 @@
-# IT-godkjenning – Vestfold Media Converter 0.1.0
+# IT-godkjenning – Vestfold Media Converter 1.0.0
 
-Status: **Teknisk testbygg. Ikke ferdig lisensklarert for videredistribusjon.** Dette dokumentet er et beslutningsgrunnlag, ikke en påstand om at IT allerede har godkjent programmet.
+Status: **Klar for IT-vurdering. Lisensgrunnlaget for FFmpeg-bygningen må avklares før videredistribusjon.** Dette dokumentet er et beslutningsgrunnlag, ikke en påstand om at IT allerede har godkjent programmet.
 
 ## Formål og brukerflyt
 
@@ -68,15 +68,13 @@ EXE-kontrollsummer må hentes fra det faktiske bygget, ikke gjenbrukes fra tidli
 
 ## Signering og bedriftsdistribusjon
 
-Testbygget er usignert med mindre et eksisterende kodesigneringssertifikat oppgis til byggskriptet. Ingen selvsignert sertifikat installeres. For produksjon bør organisasjonen signere med godkjent Authenticode-sertifikat, bruke sin ordinære tidsstempling og følge godkjent sertifikathåndtering. Byggskriptets valgfrie lokale signering bruker ikke nettverkstidsstempel. Signatur, utgiver og kjede kontrolleres før utrulling.
+Bygget er usignert med mindre et eksisterende kodesigneringssertifikat oppgis til byggskriptet. Ingen selvsignert sertifikat installeres. For produksjon bør organisasjonen signere med godkjent Authenticode-sertifikat, bruke sin ordinære tidsstempling og følge godkjent sertifikathåndtering. Byggskriptets valgfrie lokale signering bruker ikke nettverkstidsstempel. Signatur, utgiver og kjede kontrolleres før utrulling.
 
 Distribuer hele onedir-mappen via godkjent filområde/Intune/SCCM eller tilsvarende. Ingen lokal installasjon kreves av appen. AppLocker/WDAC/Defender-vurdering må dekke app, FFmpeg, FFprobe og runtime. Hash- og publisherregler håndteres av IT etter organisasjonens policy. Programmet gjør ingen forsøk på å endre eller omgå sikkerhetspolicyer. Test standardbruker, offlinekjøring, mappeomdirigering og målmaskinens maskinvare før utrulling.
 
 ## Validering og begrensninger
 
-Se `docs/TESTRESULTAT.md` for kjørte tester og utestående manuell validering. Premiere Pro-import, flere timers skoleopptak, defekte minnekort, fysisk full disk og alle GPU-/driverkombinasjoner skal prøves i målmiljøet. Ingen slik godkjenning påstås på grunnlag av syntetiske tester alene.
+Den automatiske testpakken kjøres av byggskriptet før hvert bygg. Den dekker analyse, profiler og kompatibilitet, ekte konverteringer med medfølgende FFmpeg, avbrudd og opprydding, forhåndsvisning og Qt-flytene, med lokalt genererte mediefiler. Premiere Pro-import, flere timers skoleopptak, defekte minnekort, fysisk full disk og alle GPU-/driverkombinasjoner skal prøves i målmiljøet. Ingen slik godkjenning påstås på grunnlag av syntetiske tester alene.
 
-På utviklingsmaskinen ble oppstart av det usignerte portable EXE-bygget avvist med «Ingen tilgang». Årsaken er ikke endelig fastslått. Kildekodeversjonen og de automatiserte Qt-/FFmpeg-testene kjørte. Oppstart og komplett flyt fra den pakkede EXE-en gjenstår i et godkjent miljø. Ingen sikkerhetspolicy ble endret eller omgått.
-
-Det lokale testbyggets `CHECKSUM-STATUS.md` dokumenterer at EXE-kontrollsummen ble målt ved bygging, mens en senere ny lesing ble avvist. Øvrige filer ble målt på nytt etter dokumentasjonsoppdateringen. IT må verifisere hele filsettet i målmiljøet.
+På utviklingsmaskinen ble oppstart av et tidligere usignert EXE-bygg avvist med «Ingen tilgang». Årsaken er ikke fastslått, og ingen sikkerhetspolicy ble endret eller omgått. Oppstart og komplett flyt fra den pakkede, signerte EXE-en skal derfor verifiseres med standardbruker i målmiljøet, og hele filsettet skal kontrolleres mot `SHA256SUMS.txt` før utrulling.
 

@@ -5,16 +5,13 @@ import os
 import threading
 from pathlib import Path
 
-from .models import MediaError
-from .process import capture
+from ..core.models import MediaError
+from ..core.process import capture, powershell
 
 
 def explorer_places(cancel: threading.Event) -> list[tuple[str, str]]:
     if os.name != "nt":
         return []
-    powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / (
-        "System32/WindowsPowerShell/v1.0/powershell.exe"
-    )
     # Fixed script: paths and names returned by the Shell are data, never commands.
     script = r"""
 $ErrorActionPreference = 'Stop'
@@ -27,9 +24,7 @@ $places = @($folder.Items() | Where-Object { $_.IsFolder -and $_.Path -notlike '
 ConvertTo-Json -InputObject $places -Compress
 """
     try:
-        data = json.loads(
-            capture([str(powershell), "-NoProfile", "-NonInteractive", "-Command", script], cancel, timeout=8)
-        )
+        data = json.loads(capture(powershell(script), cancel, timeout=8))
     except (ValueError, TypeError) as exc:
         raise MediaError("Kunne ikke lese Hurtigtilgang fra Windows.") from exc
     if not isinstance(data, list):

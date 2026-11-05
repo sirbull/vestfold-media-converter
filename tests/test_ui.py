@@ -1,8 +1,8 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QLabel
 
-from vestfold_converter.details import FileDetailsDialog
-from vestfold_converter.ui import MainWindow
+from vestfold_converter.ui.details import FileDetailsDialog
+from vestfold_converter.ui.main_window import MainWindow
 
 
 def wait_idle(qtbot, window):
