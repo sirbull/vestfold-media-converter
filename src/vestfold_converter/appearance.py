@@ -822,6 +822,7 @@ def stylesheet(c: dict) -> str:
         QComboBox::down-arrow {{ image: url("{arrow.as_posix()}"); width: 16px; height: 16px; }}
         QProgressBar {{ border: 0; border-radius: 3px; background: {c["border"]}; max-height: 6px; min-height: 6px; }}
         QProgressBar::chunk {{ background: {c["primary"]}; border-radius: 3px; }}
+        QProgressBar[done="true"]::chunk {{ background: {c["success"]}; }}
         QFrame#divider {{ background: {c["border"]}; border: 0; max-height: 1px; }}
         QSplitter::handle {{ background: transparent; width: 18px; }}
         QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}

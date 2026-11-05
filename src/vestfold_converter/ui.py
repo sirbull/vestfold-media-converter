@@ -69,6 +69,9 @@ from .profiles import (
 from .storage import load_preferences, preferred_output, save_preferences
 from .workers import JobWorker, analyzed_item
 
+# Hvor lenge den fulle, grønne fremdriftslinjen vises før den tømmes.
+PROGRESS_DONE_MS = 2500
+
 
 def combo(items) -> QComboBox:
     widget = RoundedComboBox()
@@ -685,6 +688,11 @@ class MainWindow(QMainWindow):
         self.total_progress.setRange(0, 1000)
         self.total_progress.setTextVisible(False)
         self.total_progress.setValue(0)
+        # Etter en kjøring vises linjen kort som ferdig (grønn ved suksess) og tømmes så.
+        self.progress_reset = QTimer(self)
+        self.progress_reset.setSingleShot(True)
+        self.progress_reset.setInterval(PROGRESS_DONE_MS)
+        self.progress_reset.timeout.connect(self._clear_total)
         self.cancel = QPushButton("Avbryt")
         self.cancel.setEnabled(False)
         self.convert = QPushButton("Konverter")
@@ -880,6 +888,9 @@ class MainWindow(QMainWindow):
                 "convert": "Konverterer …",
             }[mode]
         )
+        # En ny jobb avbryter en ventende tømming og starter med tom, vanlig linje.
+        self.progress_reset.stop()
+        self._clear_total()
         if mode != "convert":
             self.total_progress.setRange(0, 0)
         self.update_controls()
@@ -1052,6 +1063,16 @@ class MainWindow(QMainWindow):
             total = sum(1 if i.status == "Fullført" or i.error else i.progress for i in self._run_items)
             self.total_progress.setValue(round(1000 * total / len(self._run_items)))
 
+    def _set_progress_done(self, done):
+        self.total_progress.setProperty("done", done)
+        # Stilarket leser egenskapen bare når widgeten poleres på nytt.
+        self.total_progress.style().unpolish(self.total_progress)
+        self.total_progress.style().polish(self.total_progress)
+
+    def _clear_total(self):
+        self._set_progress_done(False)
+        self.total_progress.setValue(0)
+
     def on_converted(self, id_, output):
         row = self.row_for(id_)
         item = self.items[row]
@@ -1081,6 +1102,10 @@ class MainWindow(QMainWindow):
                 f"{prefix} {summary['ok']} filer konvertert.{error_text} Resultatene ligger i målmappen."
             )
             self._update_total()
+            if not summary["cancelled"] and not failures and summary["ok"]:
+                self.total_progress.setValue(1000)
+                self._set_progress_done(True)
+            self.progress_reset.start()
         elif summary.get("mode") == "analyze":
             ready_text = "1 fil er klar." if summary["ok"] == 1 else f"{summary['ok']} filer er klare."
             error_text = (
@@ -1130,7 +1155,6 @@ class MainWindow(QMainWindow):
         for item in valid:
             item.progress, item.status, item.error = 0, "I kø", ""
             self.render_row(self.row_for(item.id))
-        self.total_progress.setValue(0)
         self.start_job("convert", items=valid, folder=self.output_folder)
 
     def apply_preset(self, key):

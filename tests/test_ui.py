@@ -24,6 +24,11 @@ def test_mixed_queue_one_click(qtbot, engine, media, tmp_path):
     assert all(item.status == "Fullført" for item in window.items)
     assert "3 filer konvertert" in window.message.text()
     assert window.total_progress.value() == 1000
+    # Full linje vises grønn en kort stund og tømmes så.
+    assert window.total_progress.property("done") is True
+    qtbot.waitUntil(lambda: window.total_progress.value() == 0, timeout=5000)
+    assert window.total_progress.property("done") is False
+    assert window.total_progress.isVisible()
 
 
 def test_audio_panel_has_no_video_options(qtbot, engine, media, tmp_path):
