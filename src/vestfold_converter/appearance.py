@@ -269,6 +269,7 @@ LIGHT = {
     "hover": "#eee7df",
     "selected": "#f8e8ec",
     "nav": "#005260",
+    "nav_hover": "#08788a",
     "motif_red": "#b7173d",
     "motif_sand": "#dcd3c5",
     "motif_soft": "#f1d1d8",
@@ -299,6 +300,7 @@ DARK = {
     "hover": "#383a33",
     "selected": "#48343a",
     "nav": "#196370",
+    "nav_hover": "#08788a",
     "motif_red": "#e2a2b1",
     "motif_sand": "#8a6c3e",
     "motif_soft": "#48343a",
@@ -721,7 +723,8 @@ def stylesheet(c: dict) -> str:
         QPushButton#previewControl:focus {{ border: 1px solid {c["accent"]}; }}
         QPushButton#filledButton {{ background: {c["nav"]}; color: #ffffff;
             border-color: {c["nav"]}; }}
-        QPushButton#filledButton:hover {{ border-color: {c["accent"]}; }}
+        QPushButton#filledButton:hover, QPushButton#filledButton:focus {{
+            background: {c["nav_hover"]}; border: 1px solid {c["nav_hover"]}; }}
         QPushButton#primary {{ background: {c["primary"]}; color: {c["primary_text"]};
             border: 2px solid {c["primary"]}; border-radius: 6px; font-weight: 850;
             font-size: 12pt; padding: 11px 24px; }}
