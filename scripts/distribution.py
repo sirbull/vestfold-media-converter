@@ -75,7 +75,7 @@ def audit(folder: Path):
         for name in ("PySide6-Essentials", "shiboken6", "pyinstaller", "pyinstaller-hooks-contrib")
     }
     manifest = {
-        "application": "Vestfold media converter",
+        "application": "Vestfold Media Converter",
         "version": "0.1.0",
         "python": platform.python_version(),
         "platform": platform.platform(),

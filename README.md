@@ -1,6 +1,6 @@
-# Vestfold media converter
+# Vestfold Media Converter
 
-Portabel Windows-app for lyd og video. Grensesnittet er på norsk, med engelske fagord der det er naturlig. Bygget med Python 3.12, PySide6/Qt Widgets og medfølgende FFmpeg/FFprobe.
+Vestfold Media Converter (VMC) er en portabel Windows-app for lyd og video. Grensesnittet er på norsk, med engelske fagord der det er naturlig. Bygget med Python 3.12, PySide6/Qt Widgets og medfølgende FFmpeg/FFprobe.
 
 Grensesnittet bruker Nunito, papirfargede flater og rødt/gult fra Vestfold-våpenskjoldet. Konvertering har en tydelig rød hovedknapp. Fonten følger med programmet og fungerer offline uten installasjon på Windows.
 

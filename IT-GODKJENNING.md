@@ -1,4 +1,4 @@
-# IT-godkjenning – Vestfold media converter 0.1.0
+# IT-godkjenning – Vestfold Media Converter 0.1.0
 
 Status: **Teknisk testbygg. Ikke ferdig lisensklarert for videredistribusjon.** Dette dokumentet er et beslutningsgrunnlag, ikke en påstand om at IT allerede har godkjent programmet.
 

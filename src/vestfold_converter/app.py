@@ -1,7 +1,8 @@
 import os
+import signal
 import sys
 
-from PySide6.QtCore import QLocale
+from PySide6.QtCore import QLocale, QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from . import __version__
@@ -23,7 +24,7 @@ def main() -> int:
     ):
         arguments += ["-platform", "windows:fontengine=freetype"]
     app = QApplication(arguments)
-    app.setApplicationName("Vestfold media converter")
+    app.setApplicationName("Vestfold Media Converter")
     app.setApplicationVersion(__version__)
     app.setOrganizationName("VestfoldMediaConverter")
     app.setStyle("Fusion")
@@ -35,4 +36,11 @@ def main() -> int:
         QMessageBox.critical(None, "Programfilene er ufullstendige", str(exc))
         return 1
     window.show()
+    # Ctrl+C in a terminal closes the window normally instead of raising
+    # KeyboardInterrupt inside a Qt callback, which Qt only prints.
+    signal.signal(signal.SIGINT, lambda *_: window.close())
+    # Python only sees the signal while running Python code; wake it regularly.
+    wake = QTimer()
+    wake.timeout.connect(lambda: None)
+    wake.start(200)
     return app.exec()

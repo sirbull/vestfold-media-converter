@@ -664,6 +664,10 @@ def stylesheet(c: dict) -> str:
             selection-color: {c["text"]}; outline: 0; }}
         QListWidget#browserPlaces::item {{ padding: 5px 6px; }}
         QTreeView#browserFiles::item {{ min-height: 26px; padding: 2px 4px; }}
+        QListView#browserGrid {{ show-decoration-selected: 1; }}
+        QListView#browserGrid::item {{ border: 2px solid transparent; border-radius: 8px; padding: 4px; }}
+        QListView#browserGrid::item:selected {{ background: transparent; color: {c["text"]};
+            border: 2px solid {c["accent"]}; }}
         QDialog#importBrowser QPushButton:checked {{
             background: {c["yellow"]}; color: {c["yellow_text"]}; border-color: {c["yellow"]}; }}
         QSplitter#importSplitter::handle, QSplitter#importSplitter::handle:hover {{

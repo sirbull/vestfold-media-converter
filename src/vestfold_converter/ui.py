@@ -523,7 +523,7 @@ class MainWindow(QMainWindow):
         self._validation_failures = 0
         self._summary = None
         self._startup_positioned = False
-        self.setWindowTitle("Vestfold media converter")
+        self.setWindowTitle("Vestfold Media Converter")
         self.setWindowIcon(QIcon(str(asset_path("vestfold-vapen.svg"))))
         self.setMinimumSize(760, 500)
         self.setAcceptDrops(True)
@@ -540,7 +540,7 @@ class MainWindow(QMainWindow):
         header.addWidget(self.brand_icon)
         title_block = QVBoxLayout()
         title_block.setSpacing(3)
-        title = QLabel("Vestfold media converter")
+        title = QLabel("Vestfold Media Converter")
         title.setObjectName("title")
         title_block.addWidget(title)
         header.addLayout(title_block)
