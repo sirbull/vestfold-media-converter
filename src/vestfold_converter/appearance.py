@@ -615,6 +615,9 @@ def stylesheet(c: dict) -> str:
         QPushButton:focus, QToolButton:focus, QComboBox:focus, QLineEdit:focus, QSpinBox:focus {{
             border: 2px solid {c["accent"]}; }}
         QPushButton:disabled, QToolButton:disabled {{ color: {c["muted"]}; background: {c["raised"]}; }}
+        QPushButton#filledButton {{ background: {c["nav"]}; color: #ffffff;
+            border-color: {c["nav"]}; }}
+        QPushButton#filledButton:hover {{ border-color: {c["accent"]}; }}
         QPushButton#primary {{ background: {c["primary"]}; color: {c["primary_text"]};
             border: 2px solid {c["primary"]}; border-radius: 6px; font-weight: 850;
             font-size: 12pt; padding: 11px 24px; }}
