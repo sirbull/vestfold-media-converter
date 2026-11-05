@@ -359,6 +359,19 @@ def _paint_line_icon(painter: QPainter, rect: QRectF, name: str, color: str) -> 
         path.moveTo(x, 5)
         path.lineTo(tip, 12)
         path.lineTo(x, 19)
+    elif name in {"arrow_left", "arrow_right"}:
+        direction = -1 if name == "arrow_left" else 1
+        path.moveTo(12 - direction * 8, 12)
+        path.lineTo(12 + direction * 8, 12)
+        path.moveTo(12 + direction, 5)
+        path.lineTo(12 + direction * 8, 12)
+        path.lineTo(12 + direction, 19)
+    elif name == "arrow_up":
+        path.moveTo(12, 20)
+        path.lineTo(12, 4)
+        path.moveTo(5, 11)
+        path.lineTo(12, 4)
+        path.lineTo(19, 11)
     elif name == "list":
         for y in (6, 12, 18):
             painter.drawPoint(QPointF(4, y))
@@ -663,17 +676,25 @@ def stylesheet(c: dict) -> str:
             qproperty-checkedIconColor: "{c["yellow_text"]}"; }}
         QDialog#importBrowser QPushButton#browserViewButton:focus {{
             border: 1px solid {c["accent"]}; }}
-        QScrollArea#browserPath, QScrollArea#browserPath QWidget {{ background: transparent; border: 0; }}
-        QScrollArea#browserPath QToolButton#pathPart {{ background: transparent;
+        QPushButton#browserNavButton {{ padding: 0; min-height: 30px; max-height: 30px;
+            min-width: 30px; max-width: 30px; }}
+        QPushButton#browserNavButton:focus {{ border: 1px solid {c["accent"]}; }}
+        QFrame#browserPath {{ background: transparent; border: 0; }}
+        QFrame#addressPath {{ background: {c["surface"]}; border: 1px solid {c["border"]};
+            border-radius: 8px; }}
+        QFrame#addressPath QLineEdit#pathEditor {{ background: transparent; border: 0;
+            padding: 0; min-height: 0; }}
+        QFrame#browserPath QToolButton#pathPart, QFrame#addressPath QToolButton#pathPart {{ background: transparent;
             border: 0; padding: 2px 4px; min-height: 0; font-size: 9pt; }}
-        QScrollArea#browserPath QToolButton#pathPart:hover,
-        QScrollArea#browserPath QToolButton#pathPart:focus {{
+        QFrame#addressPath QToolButton#pathPart {{ font-size: 10pt; }}
+        QFrame#browserPath QToolButton#pathPart:hover, QFrame#browserPath QToolButton#pathPart:focus,
+        QFrame#addressPath QToolButton#pathPart:hover, QFrame#addressPath QToolButton#pathPart:focus {{
             background: {c["hover"]}; color: {c["accent"]}; }}
-        QScrollArea#browserPath QScrollBar:horizontal {{ background: transparent; height: 8px; }}
-        QScrollArea#browserPath QScrollBar::handle:horizontal {{ background: {c["border"]};
-            border-radius: 4px; min-width: 32px; }}
-        QScrollArea#browserPath QScrollBar::add-line:horizontal,
-        QScrollArea#browserPath QScrollBar::sub-line:horizontal {{ width: 0; }}
+        QMenu#pathMenu {{ background: {c["surface"]}; color: {c["text"]};
+            border: 1px solid {c["border"]}; padding: 6px; }}
+        QMenu#pathMenu::item {{ padding: 6px 12px; border-radius: 4px; }}
+        QMenu#pathMenu::item:selected {{ background: {c["selected"]}; }}
+        QMenu#pathMenu::separator {{ height: 1px; background: {c["border"]}; margin: 4px; }}
         QLabel {{ background: transparent; }}
         QLabel#title {{ font-size: 21pt; font-weight: 850; }}
         QLabel#sectionTitle {{ font-size: 14pt; font-weight: 800; }}

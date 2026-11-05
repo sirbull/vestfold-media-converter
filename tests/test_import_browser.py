@@ -122,7 +122,7 @@ def test_browser_controls_fit_small_window(qtbot, browser, width, height):
     assert browser.width() == width
     assert browser.height() == height
     for widget in (
-        browser.address,
+        browser.address_bar,
         browser.native,
         browser.import_button,
         browser.cancel,
@@ -167,12 +167,43 @@ def test_path_bar_shows_file_and_clicking_parent_navigates(qtbot, browser):
         for button in browser.path_bar.buttons
         if Path(button.property("folderPath")) == directory.parent
     )
-    # Scroll to the target ancestor before the click, as with a long real path.
-    browser.path_bar.ensureWidgetVisible(parent)
-    qtbot.mouseClick(parent, Qt.MouseButton.LeftButton)
+    if parent.isVisible():
+        qtbot.mouseClick(parent, Qt.MouseButton.LeftButton)
+    else:
+        qtbot.mouseClick(browser.path_bar.overflow, Qt.MouseButton.LeftButton)
+        menu = browser.path_bar.popup_menu
+        action = next(
+            action for action in menu.actions() if action.data() and Path(action.data()) == directory.parent
+        )
+        qtbot.mouseClick(menu, Qt.MouseButton.LeftButton, pos=menu.actionGeometry(action).center())
     assert Path(browser.current_directory) == directory.parent
     browser.go_back()
     assert Path(browser.current_directory) == directory
+
+
+def test_address_breadcrumbs_navigate_and_ctrl_l_allows_pasted_path(qtbot, browser):
+    original = Path(browser.current_directory)
+    assert browser.back.text() == browser.forward.text() == browser.up.text() == ""
+    assert not browser.address.isVisible()
+    qtbot.keyClick(browser, Qt.Key.Key_L, Qt.KeyboardModifier.ControlModifier)
+    qtbot.waitUntil(browser.address.isVisible)
+    assert browser.address.selectedText()
+    browser.address.setText(str(original / "undermappe"))
+    qtbot.keyClick(browser.address, Qt.Key.Key_Return)
+    assert Path(browser.current_directory) == original / "undermappe"
+    assert not browser.address.isVisible()
+    parent = next(
+        button for button in browser.address_bar.buttons if Path(button.property("folderPath")) == original
+    )
+    qtbot.mouseClick(parent, Qt.MouseButton.LeftButton)
+    assert Path(browser.current_directory) == original
+    qtbot.keyClick(browser, Qt.Key.Key_L, Qt.KeyboardModifier.ControlModifier)
+    qtbot.waitUntil(browser.address.isVisible)
+    browser.address.setText("Dette skal ikke brukes")
+    qtbot.keyClick(browser.address, Qt.Key.Key_Escape)
+    assert browser.isVisible()
+    assert not browser.address.isVisible()
+    assert Path(browser.current_directory) == original
 
 
 def test_search_results_preview_toggle_import_and_show_parent(qtbot, browser, monkeypatch):

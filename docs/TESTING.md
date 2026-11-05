@@ -15,6 +15,7 @@
 - Avspillingsikoner og hopp på fem sekunder: sceneendring med ekte video, avgrensning ved start/slutt, fortsatt avspilling etter hopp og deaktivering for lydfiler. Små vinduer kontrolleres også med søkefelt og visningsikoner inne i filpanelet.
 - Importbrowser: forhåndsvisning og avspilling før import, flervalg på tvers av liste/rutenett, navigasjon, filfilter, justerbar panelbredde, små vinduer og opprydding ved avbrudd. Feil ved lesing av Hurtigtilgang og systemfilvelgerens retur/avbrudd testes uten å endre systemets snarveier.
 - Klikkbar filsti og Windows-søk: søketreff med forhåndsvisning, bytte av visning, åpning av treffets mappe, tomme treff, utilgjengelig indeks og kansellering ved mappebytte. Søkeord med apostrofer, SQL-jokertegn og norsk tekst testes som data, sammen med resultatgrense og ugyldige svar fra søketjenesten. Automatiske tester bruker simulerte indekssvar; faktisk Windows Search kontrolleres separat fra terminalen.
+- Mappesti som i Utforsker: klikkbare mappedeler, **…**-meny med hele stien og alle overordnede mapper, tilpasning ved endret bredde, lange navn, norsk tekst og ampersand. Ctrl+L, Enter og Escape testes med innlimte stier og fortsatt tilbake/frem-navigasjon.
 
 Mediefiksturer lages med FFmpeg i pytest sin midlertidige mappe. Ingen eksterne mediedata eller nettverk brukes under testene. Qt-testene kjører med offscreen-plattform. En Windows-CI er inkludert; denne er ikke automatisk kjørt bare fordi filen finnes lokalt.
 

@@ -89,14 +89,23 @@ class ImportBrowser(QDialog):
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
         toolbar = QHBoxLayout()
-        self.back = self._button("Tilbake", toolbar, self.go_back)
-        self.forward = self._button("Frem", toolbar, self.go_forward)
-        self.up = self._button("Opp", toolbar, self.go_up)
-        self.address = QLineEdit()
-        self.address.setAccessibleName("Mappe eller filsti")
-        self.address.setPlaceholderText("Skriv eller lim inn en mappesti")
+        self.back = IconButton("arrow_left", "Tilbake")
+        self.forward = IconButton("arrow_right", "Frem")
+        self.up = IconButton("arrow_up", "Opp én mappe")
+        for button, callback in (
+            (self.back, self.go_back),
+            (self.forward, self.go_forward),
+            (self.up, self.go_up),
+        ):
+            button.setObjectName("browserNavButton")
+            button.setIconSize(QSize(18, 18))
+            button.clicked.connect(callback)
+            toolbar.addWidget(button)
+        self.address_bar = PathBar(framed=True)
+        self.address_bar.folderClicked.connect(self.navigate)
+        self.address = self.address_bar.editor
         self.address.returnPressed.connect(self._open_address)
-        toolbar.addWidget(self.address, 1)
+        toolbar.addWidget(self.address_bar, 1)
         self.search_input = QLineEdit()
         self.search_input.setObjectName("browserSearch")
         self.search_input.setAccessibleName("Søk etter filnavn med Windows Search")
@@ -246,6 +255,7 @@ class ImportBrowser(QDialog):
             ("Alt+Left", self.go_back),
             ("Alt+Right", self.go_forward),
             ("Alt+Up", self.go_up),
+            ("Ctrl+L", self.address_bar.start_edit),
         ):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(callback)
@@ -441,7 +451,7 @@ class ImportBrowser(QDialog):
         index = self.model.index(path)
         for view in (self.list_view, self.grid_view):
             view.setRootIndex(index)
-        self.address.setText(QDir.toNativeSeparators(path))
+        self.address_bar.set_path(path)
         self.location.setText("Velg filer. Ctrl/Shift markerer flere.")
         if remember:
             self._history = self._history[: self._history_index + 1] + [path]
