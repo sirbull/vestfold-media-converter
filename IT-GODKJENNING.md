@@ -1,28 +1,57 @@
 # IT-godkjenning – Vestfold Media Converter 1.0.0
 
-Status: **Klar for IT-vurdering. Lisensgrunnlaget for FFmpeg-bygningen må avklares før videredistribusjon.** Dette dokumentet er et beslutningsgrunnlag, ikke en påstand om at IT allerede har godkjent programmet.
+Status: **Klar for IT-vurdering.** Tilsvarende kildekode for hele programmet, inkludert FFmpeg og alle bibliotekene i den, følger med. Dette dokumentet er et beslutningsgrunnlag, ikke en påstand om at IT allerede har godkjent programmet.
+
+Gjenstår før utrulling:
+
+1. Signering med organisasjonens kodesigneringssertifikat, med tidsstempel.
+2. Juridisk vurdering av patentpooler for H.264/HEVC/AAC-koding (se [lisensnotatet](docs/LICENSES.md#patenter)).
+3. Prøving i målmiljøet (se [Validering](#validering-og-begrensninger)).
 
 ## Formål og brukerflyt
 
-Lokal konvertering av lyd og video for videregående skole. Elever importerer medier og trykker Konverter. Standard videoeksport er MP4/H.264/AAC; standard lydeksport er MP3. Ingen konto eller internett kreves. Originaler åpnes kun for lesing.
+Lokal konvertering av lyd og video for videregående skole. Elever importerer medier og trykker Konverter. Standard videoeksport er MP4/H.264/AAC, og standard lydeksport er MP3. Ingen konto eller internett kreves. Originaler åpnes bare for lesing.
 
-Valgt video kan forhåndsvises uten lyd med medfølgende FFmpeg. Bilder overføres gjennom en lokal prosesspipe og holdes begrenset i minnet; ingen nye mediefiler opprettes for forhåndsvisning. Filbytte og lukking avbryter dekodingen. Dette bruker ikke installerte Windows-kodeker eller nettverk.
+Valgt fil kan forhåndsvises med den medfølgende FFmpeg. Bilder og lyd overføres gjennom en lokal prosesspipe og holdes begrenset i minnet, og ingen nye mediefiler opprettes for forhåndsvisning. Lyd spilles gjennom Windows sin innebygde lydutgang (winmm). Installerte Windows-kodeker brukes ikke.
 
-## Teknologi og faktisk inventar
+## Leveranse
 
-Python 3.12+, PySide6 Essentials (Qt Widgets), Shiboken6, FFmpeg og FFprobe. PyInstaller brukes ved bygging til en portabel **onedir**-mappe. Låste Python-avhengigheter ligger i `uv.lock`. Nøyaktige versjoner, FFmpeg-konfigurasjon og liste over eksekverbare filer genereres i `BUILD-INFO.json` for hvert bygg.
-
-Nunito-fonten følger med programmet under SIL Open Font License 1.1. Qt registrerer fonten bare i programmets minne. Ingen font installeres i Windows, og dette krever verken registerendring, administratorrettigheter eller nettverk. Fontfil og original lisens følger med i assets-mappen; lisensen samles også i byggmappens lisenssamling.
-
-Forventede EXE-filer:
-
-| Fil | Funksjon |
+| Form | Bruk |
 | --- | --- |
-| `VestfoldMediaConverter.exe` | Qt-applikasjon og inkludert Python-kjøremiljø |
-| `_internal/vendor/ffmpeg/bin/ffmpeg.exe` | Lokal dekoding og konvertering |
+| `VestfoldMediaConverter-1.0.0.msi` | Installasjon for hele maskinen til `C:\Program Files\Vestfold Media Converter`, med snarvei på Start-menyen. Anbefalt for Intune/SCCM. |
+| Programmappen `VestfoldMediaConverter/` | Samme filer uten installasjon. Må ligge på et sted AppLocker/WDAC tillater. |
+
+```powershell
+msiexec /i VestfoldMediaConverter-1.0.0.msi /qn /l*v install.log    # stille installasjon
+msiexec /x VestfoldMediaConverter-1.0.0.msi /qn                     # avinstallasjon
+```
+
+MSI-pakken har ingen egne installasjonshandlinger, tjenester, drivere, planlagte oppgaver eller oppstartsoppføringer. En ny versjon erstatter den gamle automatisk (fast UpgradeCode `844f7685-e5b2-49fa-b061-60ab2c4100f2`). Ingen installasjon, oppdatering eller nedlasting skjer fra selve appen.
+
+## Teknologi og inventar
+
+Python 3.12, PySide6 Essentials (Qt Widgets), Shiboken6 og pywin32, pakket med PyInstaller til en **onedir**-mappe, samt FFmpeg og FFprobe. Alle komponenter, versjoner, lisenser og kontrollsummer står i `SBOM.cdx.json` (CycloneDX 1.5) og `BUILD-INFO.json` i hvert bygg. Låste Python-avhengigheter ligger i `uv.lock`.
+
+| EXE-fil | Funksjon |
+| --- | --- |
+| `VestfoldMediaConverter.exe` | Qt-applikasjonen med Python-kjøremiljøet |
+| `_internal/vendor/ffmpeg/bin/ffmpeg.exe` | Lokal dekoding, konvertering og forhåndsvisning |
 | `_internal/vendor/ffmpeg/bin/ffprobe.exe` | Analyse av kilde og resultat |
 
-Eventuelle øvrige EXE-filer samlet av Qt/PyInstaller fremgår av den genererte listen og skal inngå i IT-vurderingen. DLL-/PYD-filer og Qt-plattformplugin inngår også i kontrollsumlisten. `ffplay.exe` distribueres ikke. Ingen installer, systemtjeneste, planlagt oppgave eller driver opprettes.
+`ffplay.exe` følger ikke med. DLL-, PYD- og Qt-plugin-filer lastes bare fra `_internal` i programmappen og står i kontrollsumlisten.
+
+**FFmpeg er prosjektets eget bygg**, laget i GitHub Actions fra kildekode låst med SHA-256 eller git-commit (`scripts/ffmpeg/`). Det har bare bibliotekene appen bruker, og **ingen nettverksstøtte** (`--disable-network`). Det kan altså ikke åpne nettadresser, selv om noen skulle prøve. Byggskriptet kontrollerer på hvert bygg at FFmpeg mangler alle nettverksprotokoller, ikke er bygget med `--enable-nonfree`, og dekker alt appen bruker.
+
+## Prosesser og Windows-integrasjon
+
+| Hva | Hvordan |
+| --- | --- |
+| Underprosesser | Bare `ffmpeg.exe` og `ffprobe.exe` fra programmappen. Absolutt sti, argumentliste, aldri `shell=True`, aldri PATH-oppslag, `CREATE_NO_WINDOW`. Kun protokollene `file` og `pipe` er tillatt i kommandoene. |
+| PowerShell, cmd, skript | Brukes ikke. |
+| Hurtigtilgang | Leses direkte fra Windows Shell (COM `Shell.Application`) i appens egen prosess. Ingenting endres. |
+| Filsøk | Leses fra Windows Search-indeksen gjennom OLE DB (COM `ADODB` med `Search.CollatorDSO`), i appens egen prosess. Søkeord escapes som SQL-litteraler og brukes aldri som kommandoer. |
+| Dokumenter-mappen | Windows Known Folder API (`SHGetKnownFolderPath`), som følger omdirigering til OneDrive eller nettverk. |
+| Lyd | Windows sin innebygde lydutgang (winmm). |
 
 ## Tilganger og lagring
 
@@ -30,51 +59,55 @@ Eventuelle øvrige EXE-filer samlet av Qt/PyInstaller fremgår av den genererte 
 | --- | --- |
 | Brukervalgte kildefiler og mapper | Lesing og mappeopplisting, inkludert undermapper |
 | Dokumenter/Mediekonverter eller valgt målmappe | Opprette mappe, midlertidige filer og ferdige resultatfiler |
-| `%LOCALAPPDATA%/VestfoldMediaConverter/settings.json` | Skrive/lese målmappe og tema |
-| Brukerens TEMP-mappe | Kortvarig FFmpeg-feilutskrift under konvertering; slettes ved normal avslutning |
-| Programmappen | Lesing av EXE, runtime, FFmpeg og dokumentasjon |
+| `%LOCALAPPDATA%\VestfoldMediaConverter\settings.json` | Lese/skrive tema, målmappe og visningsvalg i filbrowseren |
+| Brukerens TEMP-mappe | Kortvarig FFmpeg-feilutskrift under konvertering, slettes etterpå |
+| Programmappen | Bare lesing. Appen skriver aldri til sin egen mappe. |
+| Registeret | Appen skriver ikke til registeret. MSI-pakken lager Windows Installer sine vanlige avinstallasjonsoppføringer og nøkkelen `HKLM\Software\Vestfold Media Converter` for Start-menysnarveien. |
 
-Originalfilene endres eller slettes ikke. Eksisterende resultater overskrives ikke. Ved avbrudd slettes den påbegynte `.vmc-*.part.*`-filen. Strømbrudd, tvangsavslutning eller frakoblet disk kan etterlate denne; den kan slettes manuelt. Kø og kildefilstier holdes kun i minnet. Feilmeldinger kan inneholde lokale filstier. Ingen permanente medielogger eller analysehistorikk opprettes.
-
-Sist valgte målmappe brukes bare når den fortsatt finnes og er tilgjengelig. Ellers brukes Windows Known Folder API for Dokumenter og undermappen Mediekonverter. Brukerens eventuelle OneDrive-/nettverksomdirigering av Dokumenter følger Windows-oppsettet. Selve appen har ingen nettverksklient; organisasjonens synkronisering/filserver kan likevel håndtere filer brukeren lagrer der.
+Originalfilene endres eller slettes ikke, og eksisterende resultater overskrives ikke. Ved avbrudd slettes den påbegynte `.vmc-*.part.*`-filen. Strømbrudd, tvangsavslutning eller frakoblet disk kan etterlate denne, og den kan da slettes manuelt. Kø og kildefilstier holdes bare i minnet. Feilmeldinger kan inneholde lokale filstier. Ingen medielogger eller analysehistorikk lagres.
 
 ## Nettverk og rettigheter
 
-**Ingen nettverkstilgang behøves ved bruk.** Ingen telemetri, oppdateringssjekk, kodeknedlasting, datainnsamling, innlogging eller skybehandling. Kun lokal FFmpeg-protokoll `file,pipe` tillates i kommandoene. Utviklingsskript bruker HTTPS til pakkekilder/Gyan under klargjøring. Disse skriptene kjøres ikke av sluttbrukerprogrammet.
+**Ingen nettverkstilgang behøves eller brukes.** Ingen telemetri, oppdateringssjekk, nedlasting av kode, datainnsamling, innlogging eller skybehandling. Selve appen har ingen nettverksklient. Organisasjonens synkronisering eller filserver kan likevel håndtere filer brukeren lagrer i en omdirigert mappe.
 
-Vanlig bruker er tilstrekkelig. Manifestet bruker `asInvoker`, DPI-awareness og long-path-awareness. Appen skriver ikke til registeret og installerer ingenting. Filtilganger og operativsystemets lengdegrenser gjelder fortsatt. FFmpeg startes med absolutte programstier, argumentlister og `CREATE_NO_WINDOW`, aldri `shell=True`. Appen bruker ikke installerte Windows-kodeker. Valgfri GPU-encoding bruker allerede installert driver.
+Vanlig bruker er nok. Manifestet bruker `asInvoker`, DPI-tilpasning og lange stier. Valgfri GPU-koding bruker allerede installert driver: NVENC krever en NVIDIA-driver som støtter Video Codec SDK 13.0, og Quick Sync og AMF bruker driverne fra Intel og AMD.
+
+## Sikkerhetsregler (AppLocker, WDAC, Defender)
+
+- **Utgiverregel:** Når bygget er signert, har alle EXE-, DLL- og PYD-filer uten leverandørsignatur organisasjonens signatur, også FFmpeg, FFprobe og Python-modulene. Filer fra Qt og Python beholder leverandørens signatur. Én utgiverregel for organisasjonens sertifikat og leverandørene dekker dermed hele programmet. Hash-regler kan lages fra `SHA256SUMS.txt`.
+- **Sti:** MSI-en installerer til Program Files, som standardreglene i AppLocker tillater. Ingen programfiler kjøres fra TEMP eller brukermapper.
+- **Defender og ASR:** Programmet starter ingen skript, PowerShell, cmd eller Office-prosesser, og laster ikke kode fra nettet. Regelen *Block executable files from running unless they meet a prevalence, age, or trusted list criterion* vil stoppe et nytt, usignert bygg. Signering og IT sin godkjenning av sertifikatet håndterer dette.
+- Programmet gjør ingen forsøk på å endre eller omgå sikkerhetsinnstillinger.
 
 ## Lisenser
 
-Applikasjonen leveres under GPL-3.0-or-later. Lisenssamlingen ligger under `_internal/licenses`. Se [docs/LICENSES.md](docs/LICENSES.md) for kilder og konkrete distribusjonsforutsetninger.
+Programmet er gratis og leveres under GPL-3.0-or-later. Lisenstekstene ligger i `_internal/licenses`, og tilsvarende kildekode i `source/`:
 
-FFmpeg 9.0.2 Essentials fra Gyan er kompilert med `--enable-gpl --enable-version3 --enable-libx264 --enable-libx265`. Den faktiske `ffmpeg -L`-utskriften lagres i bygginventaret. **Denne bygningen er GPLv3, ikke LGPL.** Byggskriptet avviser `--enable-nonfree`. Lisensmessige krav gjelder også statisk innlenkede biblioteker. GPL betyr ikke at patentspørsmål automatisk er avklart.
+- `APPLICATION-SOURCE.zip`: appens egen kildekode, tester og byggoppskrift
+- `ffmpeg-vmc-9.0.2-source.tar`: uendrede kildearkiv for FFmpeg og hvert bibliotek som er lenket inn, med byggskript og verktøykjedens versjoner
 
-Før deling må distributør sikre fullstendig tilsvarende kildekode og bygghjelpemidler for de medfølgende GPL-komponentene, samt alle notices/lisenser som følger med eksterne biblioteker. En generell lenke til FFmpeg eller x264 er ikke alene tilstrekkelig. Det genererte `APPLICATION-SOURCE.zip` dekker appens egen kildekode, ikke hele Gyan-bygningen. Et egnet alternativ er en egen dokumentert og reproduserbar FFmpeg-byggkjede med arkivert kildegrunnlag.
+Med x264 og x265 er FFmpeg-bygget **GPLv3, ikke LGPL**. Qt/PySide6 er LGPLv3, og Qt-bibliotekene ligger som utskiftbare DLL-filer. Python og pywin32 har PSF-lisens, PyInstaller GPL med bootloader-unntak, og Nunito SIL OFL 1.1. Se [docs/LICENSES.md](docs/LICENSES.md) for hver komponent og distribusjonsrutinen.
 
-PySide6/Qt Essentials og Shiboken har LGPLv3/GPLv3-/kommersielle lisensalternativer og tredjepartskomponenter. Brukerens rettigheter til modifikasjon, erstatning av bibliotekene og nødvendig informasjon må ivaretas. onedir gjør de delte Qt-bibliotekene tilgjengelige. Ingen lisensserver eller kommersiell Qt-lisens antas. PyInstaller har GPL med bootloader-unntak; Python har PSF-lisens. Byggskriptet samler pakkefølgende lisensfiler, men automatisert innsamling erstatter ikke fullstendig lisenskontroll.
+## Kontrollsummer og SBOM
 
-## SHA-256
+`SHA256SUMS.txt` i programmappen har SHA-256 for alle øvrige filer: EXE, FFmpeg, FFprobe, DLL/PYD, dokumentasjon, kildearkiv og SBOM. MSI-pakken har sin egen `.msi.sha256`. Kontrollsummer og SBOM beregnes **etter signering**. FFmpeg-pakken kontrolleres mot sin egen kontrollsumliste før den tas inn i bygget, og kildearkivet mot kontrollsummen fra installasjonen.
 
-`SHA256SUMS.txt` i den ferdige programmappen inneholder faktiske SHA-256-verdier for alle øvrige filer, inkludert app-EXE, FFmpeg, FFprobe, DLL/PYD, dokumentasjon og kildearkiv. `BUILD-INFO.json` beskriver bygget. Kontrollsummer beregnes **etter eventuell signering**. Etter endringer eller signering av andre filer må inventarskriptet kjøres på nytt.
+En lokal kontrollsum alene beviser ikke opphav. Signatur og en kontrollsum fra en betrodd kanal (for eksempel byggartefaktene i GitHub Actions) brukes for integritetskontroll.
 
-Det innhentede FFmpeg-ziparkivet er låst til SHA-256:
+## Signering
 
-```text
-60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba
-```
-
-EXE-kontrollsummer må hentes fra det faktiske bygget, ikke gjenbrukes fra tidligere versjoner. Signert distribusjonsinventar eller en kontrollsum publisert i en betrodd kanal kan brukes for integritetskontroll; en lokal kontrollsum alene beviser ikke opphav.
-
-## Signering og bedriftsdistribusjon
-
-Bygget er usignert med mindre et eksisterende kodesigneringssertifikat oppgis til byggskriptet. Ingen selvsignert sertifikat installeres. For produksjon bør organisasjonen signere med godkjent Authenticode-sertifikat, bruke sin ordinære tidsstempling og følge godkjent sertifikathåndtering. Byggskriptets valgfrie lokale signering bruker ikke nettverkstidsstempel. Signatur, utgiver og kjede kontrolleres før utrulling.
-
-Distribuer hele onedir-mappen via godkjent filområde/Intune/SCCM eller tilsvarende. Ingen lokal installasjon kreves av appen. AppLocker/WDAC/Defender-vurdering må dekke app, FFmpeg, FFprobe og runtime. Hash- og publisherregler håndteres av IT etter organisasjonens policy. Programmet gjør ingen forsøk på å endre eller omgå sikkerhetspolicyer. Test standardbruker, offlinekjøring, mappeomdirigering og målmaskinens maskinvare før utrulling.
+Byggskriptet signerer med et eksisterende sertifikat i brukerens sertifikatlager (`-SigningCertificateThumbprint`) og organisasjonens tidsstempeltjeneste (`-TimestampServer`). Uten tidsstempel blir signaturen ugyldig når sertifikatet utløper, og da vil sikkerhetsregler blokkere programmet. I GitHub Actions kan sertifikatet legges i repoets hemmeligheter. Det installeres aldri noe selvsignert sertifikat. Signatur, utgiver og kjede kontrolleres før utrulling.
 
 ## Validering og begrensninger
 
-Den automatiske testpakken kjøres av byggskriptet før hvert bygg. Den dekker analyse, profiler og kompatibilitet, ekte konverteringer med medfølgende FFmpeg, avbrudd og opprydding, forhåndsvisning og Qt-flytene, med lokalt genererte mediefiler. Premiere Pro-import, flere timers skoleopptak, defekte minnekort, fysisk full disk og alle GPU-/driverkombinasjoner skal prøves i målmiljøet. Ingen slik godkjenning påstås på grunnlag av syntetiske tester alene.
+Den automatiske testpakken kjøres før hvert bygg. Den dekker analyse, profiler og kompatibilitet, ekte konverteringer med den medfølgende FFmpeg, avbrudd og opprydding, forhåndsvisning, filbrowser, Hurtigtilgang og søk uten underprosesser, og Qt-flytene, med lokalt genererte mediefiler.
 
-På utviklingsmaskinen ble oppstart av et tidligere usignert EXE-bygg avvist med «Ingen tilgang». Årsaken er ikke fastslått, og ingen sikkerhetspolicy ble endret eller omgått. Oppstart og komplett flyt fra den pakkede, signerte EXE-en skal derfor verifiseres med standardbruker i målmiljøet, og hele filsettet skal kontrolleres mot `SHA256SUMS.txt` før utrulling.
+Skal prøves i målmiljøet med standardbruker før utrulling:
 
+- Installasjon og avinstallasjon av MSI-en, og oppstart fra Start-menyen
+- Hurtigtilgang og filsøk i filbrowseren i den pakkede appen
+- Import i Adobe Premiere Pro, flere timers skoleopptak, defekte minnekort og fysisk full disk
+- GPU-koding på skolens maskiner og drivere
+- Omdirigert Dokumenter-mappe og offline bruk
+
+På utviklingsmaskinen ble oppstart av et tidligere usignert EXE-bygg én gang avvist med «Ingen tilgang». Årsaken er ikke fastslått. Et senere bygg startet normalt fra samme maskin. Ingen sikkerhetsinnstilling ble endret eller omgått.

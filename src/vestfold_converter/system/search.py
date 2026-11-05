@@ -1,7 +1,5 @@
 """Read filename matches from the existing Windows Search index."""
 
-import base64
-import json
 import os
 import re
 import threading
@@ -9,8 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
-from ..core.models import MediaError
-from ..core.process import capture, powershell
+from ..core.models import Cancelled, MediaError
 
 SEARCH_LIMIT = 200
 MEDIA_FILTERS = (
@@ -166,49 +163,65 @@ def search_sql(text: str, all_files=False, scope: Path | None = None, criteria=(
     return f"SELECT TOP {SEARCH_LIMIT + 1} System.ItemUrl FROM SystemIndex WHERE " + " AND ".join(conditions)
 
 
+INDEX_TIMEOUT = 0x80041607
+
+
+def index_error(exc) -> MediaError:
+    """Explain a COM error from the search index, with a hint when the query timed out."""
+    codes = [getattr(exc, "hresult", None)]
+    info = getattr(exc, "excepinfo", None)
+    if info and len(info) > 5:
+        codes.append(info[5])
+    if INDEX_TIMEOUT in {code & 0xFFFFFFFF for code in codes if isinstance(code, int)}:
+        return MediaError("Søket tok for lang tid. Skriv mer av filnavnet eller legg til et kriterium.")
+    return MediaError(f"Kunne ikke søke i Windows-indeksen: {exc}")
+
+
+def _query_index(sql: str, limit: int, cancel: threading.Event) -> list[str]:
+    """Run the query through the Windows Search OLE DB provider, in this process.
+
+    No script or child process is used. The SQL is built by search_sql, where every user
+    value is escaped as a literal.
+    """
+    import pythoncom
+    import win32com.client
+
+    pythoncom.CoInitialize()
+    connection = records = None
+    try:
+        connection = win32com.client.Dispatch("ADODB.Connection")
+        connection.ConnectionTimeout = 5
+        connection.CommandTimeout = 15
+        connection.Open("Provider=Search.CollatorDSO;Extended Properties='Application=Windows';")
+        records = connection.Execute(sql)[0]
+        urls = []
+        while not records.EOF and len(urls) < limit:
+            if cancel.is_set():
+                raise Cancelled("Avbrutt")
+            value = records.Fields.Item("System.ItemUrl").Value
+            if isinstance(value, str):
+                urls.append(value)
+            records.MoveNext()
+        return urls
+    except pythoncom.com_error as exc:
+        raise index_error(exc) from exc
+    finally:
+        for handle in (records, connection):
+            try:
+                if handle is not None and handle.State == 1:
+                    handle.Close()
+            except pythoncom.com_error:
+                pass
+        records = connection = None
+        pythoncom.CoUninitialize()
+
+
 def windows_search(
     text: str, cancel: threading.Event, *, all_files=False, scope: Path | None = None, criteria=()
 ) -> SearchMatches:
     if os.name != "nt":
         raise MediaError("Søk med Windows Search krever Windows.")
-    # The script is fixed. User input is SQL-escaped, then transported as base64
-    # data, so PowerShell never interprets filenames or search terms as commands.
-    sql = search_sql(text, all_files, scope, criteria)
-    encoded = base64.b64encode(sql.encode("utf-8")).decode("ascii")
-    script = r"""
-$ErrorActionPreference = 'Stop'
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
-$query = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('__QUERY__'))
-$connection = New-Object -ComObject ADODB.Connection
-$records = $null
-$paths = New-Object System.Collections.Generic.List[string]
-try {
-    $connection.ConnectionTimeout = 5
-    $connection.CommandTimeout = 15
-    $connection.Open("Provider=Search.CollatorDSO;Extended Properties='Application=Windows';")
-    $records = $connection.Execute($query)
-    while (-not $records.EOF -and $paths.Count -lt __LIMIT__) {
-        $value = $records.Fields.Item('System.ItemUrl').Value
-        if ($value -is [string]) { $paths.Add($value) }
-        if ($paths.Count -ge __LIMIT__) { break }
-        $records.MoveNext()
-    }
-} finally {
-    if ($null -ne $records -and $records.State -eq 1) { $records.Close() }
-    if ($connection.State -eq 1) { $connection.Close() }
-}
-ConvertTo-Json -InputObject @($paths.ToArray()) -Compress
-""".replace("__QUERY__", encoded).replace("__LIMIT__", str(SEARCH_LIMIT + 1))
-    try:
-        data = json.loads(capture(powershell(script), cancel, timeout=22))
-    except MediaError as exc:
-        if "0x80041607" in str(exc):
-            raise MediaError(
-                "Søket tok for lang tid. Skriv mer av filnavnet eller legg til et kriterium."
-            ) from exc
-        raise
-    except (ValueError, TypeError) as exc:
-        raise MediaError("Kunne ikke lese søkeresultatene fra Windows.") from exc
+    data = _query_index(search_sql(text, all_files, scope, criteria), SEARCH_LIMIT + 1, cancel)
     if not isinstance(data, list):
         raise MediaError("Kunne ikke lese søkeresultatene fra Windows.")
     paths, seen = [], set()

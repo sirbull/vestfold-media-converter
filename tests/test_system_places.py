@@ -1,4 +1,3 @@
-import json
 import os
 import threading
 
@@ -18,7 +17,7 @@ def test_shell_places_keep_names_unicode_and_deduplicate(monkeypatch):
         None,
         {"path": 42},
     ]
-    monkeypatch.setattr("vestfold_converter.system.places.capture", lambda *a, **k: json.dumps(data))
+    monkeypatch.setattr("vestfold_converter.system.places._read_quick_access", lambda cancel: data)
     assert explorer_places(threading.Event()) == [
         ("Opptak æøå", "C:\\Opptak æøå"),
         ("Nettverk", "\\\\server\\media"),
@@ -27,6 +26,16 @@ def test_shell_places_keep_names_unicode_and_deduplicate(monkeypatch):
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows Shell shortcuts")
 def test_invalid_shell_response_is_reported(monkeypatch):
-    monkeypatch.setattr("vestfold_converter.system.places.capture", lambda *a, **k: "not JSON")
+    monkeypatch.setattr("vestfold_converter.system.places._read_quick_access", lambda cancel: None)
     with pytest.raises(MediaError, match="Hurtigtilgang"):
         explorer_places(threading.Event())
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows Shell shortcuts")
+def test_quick_access_is_read_without_starting_a_process(monkeypatch):
+    def no_process(*args, **kwargs):
+        raise AssertionError("Hurtigtilgang skal ikke starte en ny prosess")
+
+    monkeypatch.setattr("subprocess.Popen", no_process)
+    places = explorer_places(threading.Event())
+    assert all(isinstance(name, str) and isinstance(path, str) for name, path in places)

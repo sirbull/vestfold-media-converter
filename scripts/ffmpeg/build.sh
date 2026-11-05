@@ -142,7 +142,7 @@ FFMPEG_FLAGS=(
     --enable-libx264 --enable-libx265 --enable-libaom --enable-libvpx
     --enable-libmp3lame --enable-libopus --enable-libvorbis
     --enable-ffnvcodec --enable-nvenc --enable-nvdec --enable-cuvid --enable-amf --enable-libvpl
-    --enable-dxva2 --enable-d3d11va --enable-d3d12va
+    --enable-dxva2 --enable-d3d11va
 )
 FFMPEG="$(srcdir ffmpeg)"
 (cd "$FFMPEG" && ./configure --prefix="$WORK/ffmpeg" --target-os=mingw32 --arch=x86_64 \

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSI for hele maskinen. Installerer programmappen fra scripts/build.ps1 i Program Files,
+  med snarvei på Start-menyen. Ingen tjenester, drivere, oppstartsoppføringer eller egne
+  installasjonshandlinger. Stille installasjon: msiexec /i VestfoldMediaConverter-<versjon>.msi /qn
+  Bygges av scripts/build_msi.ps1 med WiX 5.
+
+  UpgradeCode må aldri endres: den lar en ny versjon erstatte en eldre installasjon.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Vestfold Media Converter"
+           Manufacturer="$(var.Manufacturer)"
+           Version="$(var.Version)"
+           UpgradeCode="844f7685-e5b2-49fa-b061-60ab2c4100f2"
+           Scope="perMachine"
+           Language="1044"
+           Codepage="1252">
+    <SummaryInformation Description="Vestfold Media Converter $(var.Version)" Manufacturer="$(var.Manufacturer)" />
+    <MajorUpgrade DowngradeErrorMessage="En nyere versjon av Vestfold Media Converter er allerede installert." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.IconFile)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Vestfold Media Converter">
+        <Files Include="$(var.AppDir)\**" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut">
+        <Shortcut Id="AppShortcut"
+                  Name="Vestfold Media Converter"
+                  Description="Konverter lyd og video"
+                  Target="[INSTALLFOLDER]VestfoldMediaConverter.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKLM" Key="Software\Vestfold Media Converter" Name="StartMenuShortcut"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+  </Package>
+</Wix>
