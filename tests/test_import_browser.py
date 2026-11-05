@@ -10,6 +10,7 @@ from vestfold_converter.appearance import DARK, stylesheet
 from vestfold_converter.import_browser import ImportBrowser, SelectionProbe
 from vestfold_converter.models import Cancelled, MediaError
 from vestfold_converter.ui import MainWindow
+from vestfold_converter.windows_search import SearchMatches
 
 SELECT = QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows
 
@@ -31,6 +32,7 @@ def browser(qtbot, engine, media, tmp_path):
     yield dialog
     dialog.reject()
     qtbot.waitUntil(lambda: not dialog.probe.thread.is_alive(), timeout=8000)
+    qtbot.waitUntil(lambda: not dialog.searcher.thread.is_alive(), timeout=8000)
     qtbot.waitUntil(lambda: not dialog.preview.decoder.thread.is_alive(), timeout=8000)
     qtbot.waitUntil(lambda: not dialog.places_thread.is_alive(), timeout=8000)
 
@@ -152,6 +154,107 @@ def test_cancel_native_picker_restores_selected_preview(qtbot, browser, monkeypa
     assert browser.preview.filename.text() == "a.mp4"
     assert browser.files == []
     assert browser.isVisible()
+
+
+def test_path_bar_shows_file_and_clicking_parent_navigates(qtbot, browser):
+    directory = Path(browser.current_directory)
+    select(browser, "a.mp4")
+    assert browser.path_bar.toolTip() == str(directory / "a.mp4")
+    parent = next(
+        button
+        for button in browser.path_bar.buttons
+        if Path(button.property("folderPath")) == directory.parent
+    )
+    # Scroll to the target ancestor before the click, as with a long real path.
+    browser.path_bar.ensureWidgetVisible(parent)
+    qtbot.mouseClick(parent, Qt.MouseButton.LeftButton)
+    assert Path(browser.current_directory) == directory.parent
+    browser.go_back()
+    assert Path(browser.current_directory) == directory
+
+
+def test_search_results_preview_toggle_import_and_show_parent(qtbot, browser, monkeypatch):
+    directory = Path(browser.current_directory)
+    found = directory / "b.MTS"
+    calls = []
+
+    def search(request, cancel):
+        calls.append(request)
+        return SearchMatches((found, directory / "c.wav"))
+
+    monkeypatch.setattr(browser.searcher, "function", search)
+    browser.search_input.setText("opptak")
+    qtbot.keyClick(browser.search_input, Qt.Key.Key_Return)
+    qtbot.waitUntil(lambda: browser.search_model.rowCount() == 2)
+    assert calls == [("opptak", False)]
+    assert browser.is_search
+    index = browser.search_model.index(0, 0)
+    # Sorting can put either row first, so locate the requested result by path.
+    for row in range(browser.search_model.rowCount()):
+        index = browser.search_model.index(row, 0)
+        if Path(index.data(Qt.ItemDataRole.UserRole)) == found:
+            break
+    browser.selection.setCurrentIndex(index, SELECT)
+    qtbot.waitUntil(lambda: not browser.preview.canvas.image.isNull(), timeout=20000)
+    assert browser.selected_paths() == [found]
+    assert browser.path_bar.toolTip() == str(found)
+    qtbot.mouseClick(browser.view_buttons["grid"], Qt.MouseButton.LeftButton)
+    assert browser.selected_paths() == [found]
+    assert browser.grid_view.model() is browser.search_model
+    qtbot.mouseClick(browser.reveal_folder, Qt.MouseButton.LeftButton)
+    assert not browser.is_search
+    assert browser.search_input.text() == ""
+    assert Path(browser.current_directory) == directory
+    assert browser.selected_paths() == [found]
+    qtbot.mouseClick(browser.import_button, Qt.MouseButton.LeftButton)
+    assert browser.files == [found]
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_empty_or_unavailable_index_keeps_folder_navigation(qtbot, browser, monkeypatch, failure):
+    directory = browser.current_directory
+
+    def search(request, cancel):
+        if failure:
+            raise MediaError("Search is unavailable")
+        return SearchMatches(())
+
+    monkeypatch.setattr(browser.searcher, "function", search)
+    browser.search_input.setText("missing")
+    qtbot.mouseClick(browser.search_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(
+        lambda: (
+            "utilgjengelig" in browser.location.text()
+            if failure
+            else "Ingen treff" in browser.location.text()
+        )
+    )
+    assert not browser.import_button.isEnabled()
+    browser.search_input.clear()
+    assert not browser.is_search
+    assert browser.current_directory == directory
+    assert browser.list_view.model() is browser.model
+    assert browser.native.isEnabled()
+
+
+def test_leaving_search_cancels_it_and_discards_old_results(qtbot, browser, monkeypatch):
+    started, cancelled = threading.Event(), threading.Event()
+
+    def search(request, cancel):
+        started.set()
+        assert cancel.wait(5)
+        cancelled.set()
+        raise Cancelled("Avbrutt")
+
+    monkeypatch.setattr(browser.searcher, "function", search)
+    browser.search_input.setText("old")
+    browser.start_search()
+    qtbot.waitUntil(started.is_set)
+    browser.navigate(browser.current_directory)
+    qtbot.waitUntil(cancelled.is_set)
+    assert not browser.is_search
+    assert browser.search_model.rowCount() == 0
+    assert browser.list_view.model() is browser.model
 
 
 def test_shell_failure_does_not_disable_browser(qtbot, engine, tmp_path):

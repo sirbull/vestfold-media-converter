@@ -5,8 +5,8 @@ import queue
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import QDir, QItemSelectionModel, QSize, QStandardPaths, Qt, QTimer
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtCore import QDir, QItemSelectionModel, QModelIndex, QSize, QStandardPaths, Qt, QTimer
+from PySide6.QtGui import QKeySequence, QShortcut, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -28,88 +28,17 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from .models import Cancelled, MediaError, QueueItem
+from .background import LatestRequest
+from .models import MediaError, QueueItem
+from .path_bar import PathBar
 from .preview import PreviewPanel
 from .system_places import explorer_places
-
-MEDIA_FILTERS = [
-    "*.mp4",
-    "*.mov",
-    "*.mkv",
-    "*.avi",
-    "*.webm",
-    "*.mts",
-    "*.m2ts",
-    "*.ts",
-    "*.mxf",
-    "*.mpg",
-    "*.mpeg",
-    "*.m4v",
-    "*.wmv",
-    "*.3gp",
-    "*.vob",
-    "*.flv",
-    "*.wav",
-    "*.mp3",
-    "*.flac",
-    "*.m4a",
-    "*.aac",
-    "*.opus",
-    "*.ogg",
-    "*.aif",
-    "*.aiff",
-    "*.wma",
-    "*.alac",
-]
+from .windows_search import MEDIA_FILTERS, windows_search
 
 
-class SelectionProbe:
-    """One analysis at a time; changing selection cancels old and pending work."""
-
+class SelectionProbe(LatestRequest):
     def __init__(self, engine):
-        self.engine = engine
-        self.results = queue.SimpleQueue()
-        self._condition = threading.Condition()
-        self._pending = None
-        self._cancel = threading.Event()
-        self._stopped = False
-        self._generation = 0
-        self.thread = threading.Thread(target=self._run, name="Importforhåndsvisning", daemon=True)
-        self.thread.start()
-
-    def request(self, path=None):
-        with self._condition:
-            self._generation += 1
-            self._cancel.set()
-            self._pending = (self._generation, path) if path else None
-            self._condition.notify()
-            return self._generation
-
-    def stop(self):
-        with self._condition:
-            self._stopped = True
-            self._pending = None
-            self._cancel.set()
-            self._condition.notify()
-
-    def _run(self):
-        while True:
-            with self._condition:
-                self._condition.wait_for(lambda: self._stopped or self._pending is not None)
-                if self._stopped:
-                    return
-                generation, path = self._pending
-                self._pending = None
-                cancel = self._cancel = threading.Event()
-            try:
-                info = self.engine.analyze(path, cancel)
-                result = (generation, path, info, "")
-            except Cancelled:
-                continue
-            except (MediaError, OSError) as exc:
-                result = (generation, path, None, str(exc))
-            if not cancel.is_set():
-                self.results.put(result)
+        super().__init__(engine.analyze, "Importforhåndsvisning")
 
 
 class BrowserFileModel(QFileSystemModel):
@@ -123,7 +52,15 @@ class BrowserFileModel(QFileSystemModel):
 
 class ImportBrowser(QDialog):
     def __init__(
-        self, engine, parent=None, *, directory=None, view="list", sizes=None, places_loader=explorer_places
+        self,
+        engine,
+        parent=None,
+        *,
+        directory=None,
+        view="list",
+        sizes=None,
+        places_loader=explorer_places,
+        search_loader=windows_search,
     ):
         super().__init__(parent)
         self.setWindowTitle("Importer lyd og video")
@@ -137,6 +74,12 @@ class ImportBrowser(QDialog):
         self._probe_path = None
         self._probe_generation = 0
         self.probe = SelectionProbe(engine)
+        self.searcher = LatestRequest(
+            lambda request, cancel: search_loader(request[0], cancel, all_files=request[1]), "Windows-søk"
+        )
+        self.is_search = False
+        self._search_generation = 0
+        self._search_query = ""
         self._places_cancel = threading.Event()
         self._places_results = queue.SimpleQueue()
         layout = QVBoxLayout(self)
@@ -151,11 +94,26 @@ class ImportBrowser(QDialog):
         self.address.setPlaceholderText("Skriv eller lim inn en mappesti")
         self.address.returnPressed.connect(self._open_address)
         toolbar.addWidget(self.address, 1)
+        self.search_input = QLineEdit()
+        self.search_input.setAccessibleName("Søk etter filnavn med Windows Search")
+        self.search_input.setPlaceholderText("Søk filnavn i Windows …")
+        self.search_input.setToolTip("Søk på hele maskinen i filene som Windows har indeksert")
+        self.search_input.setMinimumWidth(140)
+        self.search_input.setMaximumWidth(240)
+        self.search_input.setMaxLength(200)
+        self.search_input.setClearButtonEnabled(True)
+        self.search_input.returnPressed.connect(self.start_search)
+        self.search_input.textChanged.connect(self._search_edited)
+        toolbar.addWidget(self.search_input)
+        self.search_button = self._button("Søk", toolbar, self.start_search)
         layout.addLayout(toolbar)
         views = QHBoxLayout()
         self.location = QLabel("Velg filer. Ctrl/Shift markerer flere.")
         self.location.setObjectName("muted")
+        self.location.setWordWrap(True)
         views.addWidget(self.location, 1)
+        self.reveal_folder = self._button("Vis mappe", views, self.reveal_selected)
+        self.reveal_folder.setVisible(False)
         self.view_group = QButtonGroup(self)
         self.view_buttons = {}
         for index, (mode, label) in enumerate((("list", "Liste"), ("grid", "Rutenett"))):
@@ -188,6 +146,10 @@ class ImportBrowser(QDialog):
         self.model.setNameFilterDisables(False)
         self.model.setRootPath("")
         self.selection = QItemSelectionModel(self.model, self)
+        self.normal_selection = self.selection
+        self.search_model = QStandardItemModel(self)
+        self.search_model.setHorizontalHeaderLabels(["Navn", "Mappe"])
+        self.search_selection = QItemSelectionModel(self.search_model, self)
         self.stack = QStackedWidget()
         self.stack.setMinimumWidth(220)
         self.list_view = QTreeView()
@@ -235,6 +197,9 @@ class ImportBrowser(QDialog):
         self.places_status.setObjectName("muted")
         self.places_status.setWordWrap(True)
         layout.addWidget(self.places_status)
+        self.path_bar = PathBar()
+        self.path_bar.folderClicked.connect(self.navigate)
+        layout.addWidget(self.path_bar)
         footer = QHBoxLayout()
         self.all_files = self._button("Vis alle filtyper", footer, self._toggle_filter)
         self.all_files.setCheckable(True)
@@ -349,15 +314,108 @@ class ImportBrowser(QDialog):
         if current.isValid():
             self.stack.currentWidget().scrollTo(current)
 
+    def _use_model(self, model):
+        if self.list_view.model() is model:
+            return
+        self.selection.currentChanged.disconnect(self._current_changed)
+        self.selection.selectionChanged.disconnect(self._selection_changed)
+        self.selection = self.normal_selection if model is self.model else self.search_selection
+        for view in (self.list_view, self.grid_view):
+            view.setModel(model)
+            temporary = view.selectionModel()
+            view.setSelectionModel(self.selection)
+            temporary.deleteLater()
+        self.selection.currentChanged.connect(self._current_changed)
+        self.selection.selectionChanged.connect(self._selection_changed)
+        self.selection.clear()
+        self._selection_changed()
+        self.list_view.setColumnWidth(0, 240)
+        self.list_view.setColumnWidth(1, 240 if model is self.search_model else 80)
+        self.list_view.hideColumn(2)
+
+    def _search_edited(self, text):
+        if not self.is_search or text.strip() == self._search_query:
+            return
+        self._search_generation = self.searcher.request()
+        if not text.strip():
+            self.navigate(self.current_directory)
+        else:
+            self.search_model.removeRows(0, self.search_model.rowCount())
+            self._clear_preview("Trykk Enter for å søke")
+            self.location.setText("Trykk Enter for nytt søk i Windows-indeksen")
+
+    def start_search(self):
+        text = self.search_input.text().strip()
+        if not text:
+            if self.is_search:
+                self.navigate(self.current_directory)
+            return
+        self.is_search = True
+        self._search_query = text
+        self._use_model(self.search_model)
+        self.search_model.removeRows(0, self.search_model.rowCount())
+        self.selection.clear()
+        self._clear_preview("Søker etter filer …")
+        self.reveal_folder.show()
+        for view in (self.list_view, self.grid_view):
+            view.setRootIndex(QModelIndex())
+        self.location.setText("Søker i Windows-indeksen …")
+        self.location.setToolTip("Søket omfatter bare filene Windows har indeksert på maskinen")
+        self._search_generation = self.searcher.request((text, self.all_files.isChecked()))
+
+    def _show_search(self, matches, error):
+        if error:
+            self.location.setText("Windows-søk er utilgjengelig. Prøv Utforsker …")
+            self.location.setToolTip(error)
+            self.preview.canvas.set_message("Kunne ikke søke. Du kan fortsatt bla i mappene.")
+            return
+        icon = self.style().standardIcon(QStyle.StandardPixmap.SP_FileIcon)
+        for path in matches.paths:
+            name = QStandardItem(icon, path.name)
+            name.setData(str(path), Qt.ItemDataRole.UserRole)
+            name.setToolTip(str(path))
+            folder = QStandardItem(QDir.toNativeSeparators(str(path.parent)))
+            folder.setToolTip(str(path.parent))
+            self.search_model.appendRow([name, folder])
+        count = len(matches.paths)
+        self.location.setText(
+            f"Viser de første {count} treffene. Begrens søket."
+            if matches.limited
+            else f"{count} treff i Windows-indeksen"
+            if count
+            else "Ingen treff. Bare Windows-indekserte filer vises."
+        )
+        self.preview.canvas.set_message("Marker et søkeresultat for å se forhåndsvisning")
+
+    def reveal_selected(self):
+        current = self.selection.currentIndex()
+        if not current.isValid():
+            rows = self.selection.selectedRows(0)
+            if not rows:
+                return
+            current = rows[0]
+        path = self._index_path(current)
+        if self.navigate(str(path.parent)):
+            self.selection.setCurrentIndex(
+                self.model.index(str(path)),
+                QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows,
+            )
+
     def navigate(self, path, *, remember=True):
         directory = QDir(path)
         if not directory.exists():
             self.location.setText("Mappen er utilgjengelig. Kontroller stien eller tilkoblingen.")
             return False
         path = directory.absolutePath()
+        self._search_generation = self.searcher.request()
+        self.is_search = False
+        self.search_input.clear()
+        self.reveal_folder.hide()
+        self._use_model(self.model)
         self.selection.clear()
         self._clear_preview("Marker en fil for å se forhåndsvisning")
         self.current_directory = path
+        self.path_bar.set_path(path)
         index = self.model.index(path)
         for view in (self.list_view, self.grid_view):
             view.setRootIndex(index)
@@ -403,20 +461,30 @@ class ImportBrowser(QDialog):
 
     def _toggle_filter(self):
         self.model.setNameFilters([] if self.all_files.isChecked() else MEDIA_FILTERS)
+        if self.is_search:
+            self.start_search()
 
     def _activate(self, index):
-        path = self.model.filePath(index)
-        if self.model.isDir(index):
-            self.navigate(path)
+        path = self._index_path(index)
+        if self._index_is_dir(index):
+            self.navigate(str(path))
         else:
             self.accept_selection()
 
     def selected_paths(self):
         return [
-            Path(self.model.filePath(index))
+            self._index_path(index)
             for index in self.selection.selectedRows(0)
-            if not self.model.isDir(index)
+            if not self._index_is_dir(index)
         ]
+
+    def _index_path(self, index):
+        if index.model() is self.search_model:
+            return Path(index.siblingAtColumn(0).data(Qt.ItemDataRole.UserRole))
+        return Path(self.model.filePath(index))
+
+    def _index_is_dir(self, index):
+        return index.model() is self.model and self.model.isDir(index)
 
     def _selection_changed(self, *args):
         count = len(self.selected_paths())
@@ -424,6 +492,7 @@ class ImportBrowser(QDialog):
             f"{count} {'fil' if count == 1 else 'filer'} valgt" if count else "Ingen filer valgt"
         )
         self.import_button.setEnabled(count > 0)
+        self.reveal_folder.setEnabled(count > 0)
         if not count:
             self._clear_preview("Marker en fil for å se forhåndsvisning")
 
@@ -434,13 +503,21 @@ class ImportBrowser(QDialog):
         self.preview.show_item(None)
         self.preview.canvas.set_message(message)
         self.preview.filename.setText("Forhåndsvisning")
+        if hasattr(self, "current_directory"):
+            self.path_bar.set_path(self.current_directory)
 
     def _current_changed(self, current, previous):
         if self._closed:
             return
         self._clear_preview("Marker en fil for å se forhåndsvisning")
-        if current.isValid() and not self.model.isDir(current):
-            self._probe_path = Path(self.model.filePath(current))
+        if current.isValid():
+            path = self._index_path(current)
+            self.path_bar.set_path(
+                path if self._index_is_dir(current) else path.parent,
+                "" if self._index_is_dir(current) else path.name,
+            )
+        if current.isValid() and not self._index_is_dir(current):
+            self._probe_path = self._index_path(current)
             self.preview.filename.setText(self._probe_path.name)
             self.preview.canvas.set_message("Henter filinformasjon …")
             self.debounce.start()
@@ -450,6 +527,10 @@ class ImportBrowser(QDialog):
             self._probe_generation = self.probe.request(self._probe_path)
 
     def _poll(self):
+        while not self.searcher.results.empty():
+            generation, _request, matches, error = self.searcher.results.get_nowait()
+            if generation == self._search_generation and self.is_search and not self._closed:
+                self._show_search(matches, error)
         while not self.probe.results.empty():
             generation, path, info, error = self.probe.results.get_nowait()
             if generation == self._probe_generation and not self._closed:
@@ -493,5 +574,6 @@ class ImportBrowser(QDialog):
             self.poll.stop()
             self._places_cancel.set()
             self.probe.stop()
+            self.searcher.stop()
             self.preview.shutdown()
         super().done(result)

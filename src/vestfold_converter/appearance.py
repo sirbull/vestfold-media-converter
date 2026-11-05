@@ -583,6 +583,17 @@ def stylesheet(c: dict) -> str:
         QSplitter#importSplitter::handle {{ background: {c["border"]};
             border-radius: 3px; margin: 10px 3px; }}
         QSplitter#importSplitter::handle:hover {{ background: {c["accent"]}; }}
+        QScrollArea#browserPath, QScrollArea#browserPath QWidget {{ background: transparent; border: 0; }}
+        QScrollArea#browserPath QToolButton#pathPart {{ background: transparent;
+            border: 0; padding: 2px 4px; min-height: 0; font-size: 9pt; }}
+        QScrollArea#browserPath QToolButton#pathPart:hover,
+        QScrollArea#browserPath QToolButton#pathPart:focus {{
+            background: {c["hover"]}; color: {c["accent"]}; }}
+        QScrollArea#browserPath QScrollBar:horizontal {{ background: transparent; height: 8px; }}
+        QScrollArea#browserPath QScrollBar::handle:horizontal {{ background: {c["border"]};
+            border-radius: 4px; min-width: 32px; }}
+        QScrollArea#browserPath QScrollBar::add-line:horizontal,
+        QScrollArea#browserPath QScrollBar::sub-line:horizontal {{ width: 0; }}
         QLabel {{ background: transparent; }}
         QLabel#title {{ font-size: 21pt; font-weight: 850; }}
         QLabel#sectionTitle {{ font-size: 14pt; font-weight: 800; }}
