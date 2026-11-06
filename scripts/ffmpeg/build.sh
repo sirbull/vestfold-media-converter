@@ -137,7 +137,7 @@ cmake --install "$BUILD/vpl"
 # FFmpeg uten nettverk, ffplay, enheter (unntatt lavfi) eller automatisk oppdagede biblioteker.
 FFMPEG_FLAGS=(
     --enable-gpl --enable-version3 --disable-autodetect --disable-network --disable-ffplay
-    --disable-doc --disable-debug --disable-indevs --enable-indev=lavfi --disable-outdevs
+    --disable-doc --disable-debug --disable-indevs --enable-indev=lavfi --disable-outdevs --disable-protocol=prompeg
     --enable-w32threads --enable-zlib --enable-bzlib --enable-lzma
     --enable-libx264 --enable-libx265 --enable-libaom --enable-libvpx
     --enable-libmp3lame --enable-libopus --enable-libvorbis
