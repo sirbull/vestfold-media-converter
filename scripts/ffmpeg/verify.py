@@ -106,7 +106,7 @@ def verify(ffmpeg: Path) -> list[str]:
         missing = set(formats) - pixel_formats(ffmpeg, encoder)
         if missing:
             problems.append(f"{encoder} mangler pikselformat: {', '.join(sorted(missing))}")
-    allowed = set(requirements["protocols_allowed"])
+    allowed = set(requirements["protocols_allowed"]) | set(requirements.get("protocols_inert", {}))
     for direction, names in found["protocols"].items():
         extra = sorted(set(names) - allowed)
         if extra:

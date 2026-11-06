@@ -11,6 +11,9 @@
   "protocols_allowed": [
     "async", "cache", "concat", "concatf", "crypto", "data", "fd", "file", "md5", "pipe", "subfile", "tee"
   ],
+  "protocols_inert": {
+    "prompeg": "Pro-MPEG FEC sendes over UDP, som ikke finnes i bygget. Protokollen kan derfor ikke sende noe."
+  },
   "configure_required": ["--enable-gpl", "--disable-network"],
   "configure_forbidden": ["--enable-nonfree"],
   "excluded": {
