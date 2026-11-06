@@ -1,6 +1,6 @@
 # Vestfold Media Converter
 
-**Portabel konvertering av video og lyd for Windows, med norsk grensesnitt og uten installasjon.**
+**Gratis konvertering av video og lyd for Windows, med norsk grensesnitt. Alt skjer lokalt på maskinen.**
 
 ![Hovedvinduet i Vestfold Media Converter med fem filer i konverteringskøen og forhåndsvisning av en video](docs/bilder/hovedvindu-lyst.png)
 
@@ -8,19 +8,35 @@ Vestfold Media Converter (VMC) gjør video- og lydfiler om til formater som virk
 
 Typiske eksempler er videoopptak fra kamera (MTS/M2TS), skjermopptak, intervjuer i MOV eller AVI og lydopptak i WAV som skal deles, publiseres eller lastes opp.
 
+**Hvorfor programmet finnes:** Fra og med Windows 11, versjon 24H2, følger ikke Dolby Digital-kodeken (AC-3) lenger med Windows. Videoopptak fra AVCHD-kameraer (MTS-filer fra blant annet Sony Handycam og Panasonic) har AC-3-lyd. På nye maskiner spilles de derfor av uten lyd, og de blir importert uten lyd i Adobe Premiere Pro, som bruker Windows sin kodek. Vestfold Media Converter har sin egen dekoder og gjør opptakene om til MP4 med vanlig AAC-lyd, uten at noe må installeres i Windows og uten at filene lastes opp til nettjenester.
+
 | | |
 |---|---|
 | **Versjon** | 1.0.0 |
-| **Plattform** | Windows x64. MSI for Program Files, eller portabel programmappe. |
-| **Rettigheter** | Kjører som vanlig bruker. Krever ikke administrator. |
+| **Plattform** | Windows 10 og 11, 64-bit |
+| **Installasjon** | MSI til `C:\Program Files\Vestfold Media Converter`, med snarvei på Start-menyen |
+| **Rettigheter** | Programmet kjører som vanlig bruker. Installasjonen krever administrator, eller utrulling via for eksempel Intune. |
 | **Nettverk** | Ingen. Ingen telemetri, oppdateringssjekk eller skytjenester. |
 | **Avhengigheter** | Ingen hos brukeren. Python, Qt, FFmpeg og fonten følger med programmet. |
 | **Språk** | Norsk (bokmål), med vanlige engelske fagord. |
 | **Lisens** | GPL-3.0-or-later |
 
+## Last ned og installer
+
+Last ned `VestfoldMediaConverter-<versjon>.msi` fra [siste utgave](https://github.com/sirbull/vestfold-media-converter/releases/latest). Dobbeltklikk på filen for å installere, eller installer stille med:
+
+```powershell
+msiexec /i VestfoldMediaConverter-1.0.0.msi /qn    # installer
+msiexec /x VestfoldMediaConverter-1.0.0.msi /qn    # avinstaller
+```
+
+Kontroller gjerne filen mot `.msi.sha256`, som ligger ved siden av i utgaven. Programmet kan også avinstalleres fra **Innstillinger → Apper**. En ny versjon erstatter den gamle automatisk.
+
+Bygget i utgavene er ikke kodesignert. Windows SmartScreen kan derfor vise «Windows beskyttet PC-en» ved installasjon, og sikkerhetsregler i en organisasjon kan stoppe programmet. Organisasjoner bør signere bygget med eget sertifikat før utrulling, se [IT-godkjenning](IT-GODKJENNING.md).
+
 ## Slik brukes programmet
 
-1. Åpne `VestfoldMediaConverter.exe` fra programmappen.
+1. Start **Vestfold Media Converter** fra Start-menyen.
 2. Dra inn en fil, flere filer eller en hel mappe, eller bruk **Legg til filer** og **Legg til mappe**.
 3. Trykk **Konverter**.
 
@@ -95,13 +111,13 @@ Programmet kan lese alt den medfølgende FFmpeg-versjonen kan dekode. Filbrowser
 | MP4 · høy kvalitet | MP4, H.264/HEVC, preset *slow* | Når kvalitet er viktigere enn filstørrelse |
 | WebM · VP9 | WebM, VP9 + Opus | Nett |
 | MOV · ProRes 422 – redigering | MOV, ProRes 422 10-bit + PCM 24-bit | Videoredigering |
-| Rask konvertering | Bytter container uten ny koding (stream copy) | Når kodeken allerede passer |
+| Rask konvertering | MP4 med videostrømmen kopiert uten ny koding (stream copy) | Når videokodeken allerede passer |
 | Kun lyd | MP3 eller WAV | Hente ut lyden fra en video |
 | MP3 – Anbefalt | MP3, 192 kbit/s | Lyd, bred kompatibilitet |
 | M4A · AAC | M4A | Apple og mobil |
 | FLAC · tapsfri | FLAC, 24-bit | Arkiv uten kvalitetstap |
 | M4A · ALAC tapsfri | M4A, Apple Lossless | Tapsfritt for Apple-enheter |
-| OGG · Vorbis / Opus | OGG, Opus | Åpne formater, tale og nett |
+| OGG · Vorbis, Opus | OGG (Vorbis) og Opus | Åpne formater, tale og nett |
 | WAV · 16/24-bit, AIFF | Ukomprimert PCM | Lydredigering |
 
 ### Ut: avanserte innstillinger
@@ -122,7 +138,7 @@ Programmet kan lese alt den medfølgende FFmpeg-versjonen kan dekode. Filbrowser
 ## Sikkerhet og datahåndtering
 
 - **Ingen nettverk:** Programmet kobler seg aldri til internett. Den medfølgende FFmpeg er bygget helt uten nettverksstøtte, og startes i tillegg med bare `file`- og `pipe`-protokollene tillatt.
-- **Ingen systemendringer:** Programmet skriver ikke til registeret, installerer ingen tjenester, endrer ingen Windows-innstillinger og ber ikke om administratorrettigheter.
+- **Ingen systemendringer:** Selve programmet skriver ikke til registeret, installerer ingen tjenester, endrer ingen Windows-innstillinger og ber ikke om administratorrettigheter. MSI-pakken lager bare programmappen, snarveien og Windows sine vanlige avinstallasjonsoppføringer.
 - **Kontrollerte prosesser:** FFmpeg og FFprobe er de eneste programmene som startes. De startes direkte fra programmappen, uten shell, uten oppslag i PATH og uten synlig konsollvindu. PowerShell og skript brukes ikke.
 - **Trygg lagring:** FFmpeg skriver først til en midlertidig fil. Resultatet kontrolleres med FFprobe (riktige strømmer, kodeker og varighet) før filen får sitt endelige navn. Finnes navnet fra før, brukes `navn (1).mp4`, `navn (2).mp4` osv. Ingenting overskrives.
 - **Lite lagret:** Bare tema, målmappe og visningsvalg i filbrowseren lagres, i `%LOCALAPPDATA%\VestfoldMediaConverter\settings.json`. Filstier, køer, søkeord og søkeresultater lagres ikke mellom kjøringer.
@@ -204,7 +220,7 @@ uv sync --frozen --extra dev
 uv run python -m vestfold_converter
 ```
 
-`uv` henter Python 3.12 ved behov. FFmpeg-pakken og kildearkivet er artefakten **ffmpeg** fra arbeidsflyten *Bygg og test* i GitHub Actions. Bygget kan også lages på nytt på Ubuntu 24.04 med `scripts/ffmpeg/build.sh`. `fetch_ffmpeg.ps1` kontrollerer hver fil mot pakkens kontrollsummer før den tas i bruk. Når miljøet er klart, kan programmet startes uten nettverk:
+`uv` henter Python 3.12 ved behov. FFmpeg-pakken og kildearkivet er artefakten **ffmpeg** fra arbeidsflyten *Bygg og test* i GitHub Actions (nedlasting av artefakter krever pålogging på GitHub). Bygget kan også lages på nytt på Ubuntu 24.04 med `scripts/ffmpeg/build.sh`. `fetch_ffmpeg.ps1` kontrollerer hver fil mot pakkens kontrollsummer før den tas i bruk. Når miljøet er klart, kan programmet startes uten nettverk:
 
 ```powershell
 uv run --frozen --offline python -m vestfold_converter
