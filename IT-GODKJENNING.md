@@ -77,6 +77,7 @@ Vanlig bruker er nok. Manifestet bruker `asInvoker`, DPI-tilpasning og lange sti
 - **Utgiverregel:** Når bygget er signert, har alle EXE-, DLL- og PYD-filer uten leverandørsignatur organisasjonens signatur, også FFmpeg, FFprobe og Python-modulene. Filer fra Qt og Python beholder leverandørens signatur. Én utgiverregel for organisasjonens sertifikat og leverandørene dekker dermed hele programmet. Hash-regler kan lages fra `SHA256SUMS.txt`.
 - **Sti:** MSI-en installerer til Program Files, som standardreglene i AppLocker tillater. Ingen programfiler kjøres fra TEMP eller brukermapper.
 - **Defender og ASR:** Programmet starter ingen skript, PowerShell, cmd eller Office-prosesser, og laster ikke kode fra nettet. Regelen *Block executable files from running unless they meet a prevalence, age, or trusted list criterion* vil stoppe et nytt, usignert bygg. Signering og IT sin godkjenning av sertifikatet håndterer dette.
+- **Skanning ved oppstart:** Programmet starter FFprobe én gang per fil ved import, og FFmpeg ved konvertering og forhåndsvisning. På en utviklingsmaskin med sanntidsbeskyttelse tok hver oppstart av en ukjent, usignert `ffmpeg.exe` rundt 1,8 sekunder, mot noen millisekunder uten skanning. Import av mange filer blir merkbart tregere før filene er kjent for Defender. Signering og godkjenning av sertifikatet eller filene reduserer dette. Unntak fra skanning er ikke nødvendig.
 - Programmet gjør ingen forsøk på å endre eller omgå sikkerhetsinnstillinger.
 
 ## Lisenser
