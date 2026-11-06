@@ -4,9 +4,10 @@ Status: **Klar for IT-vurdering.** Tilsvarende kildekode for hele programmet, in
 
 Gjenstår før utrulling:
 
-1. Signering med organisasjonens kodesigneringssertifikat, med tidsstempel.
-2. Juridisk vurdering av patentpooler for H.264/HEVC/AAC-koding (se [lisensnotatet](docs/LICENSES.md#patenter)).
-3. Prøving i målmiljøet (se [Validering](#validering-og-begrensninger)).
+1. Signering med organisasjonens kodesigneringssertifikat, med tidsstempel. Et usignert bygg blir stoppet av vanlige sikkerhetsregler for nye programmer (se [Sikkerhetsregler](#sikkerhetsregler-applocker-wdac-defender)).
+2. Godkjenning av sertifikatet i Defender for Endpoint og i WDAC-policyen.
+3. Juridisk vurdering av patentpooler for H.264/HEVC/AAC-koding (se [lisensnotatet](docs/LICENSES.md#patenter)).
+4. Prøving i målmiljøet (se [Validering](#validering-og-begrensninger)).
 
 ## Formål og brukerflyt
 
@@ -74,10 +75,17 @@ Vanlig bruker er nok. Manifestet bruker `asInvoker`, DPI-tilpasning og lange sti
 
 ## Sikkerhetsregler (AppLocker, WDAC, Defender)
 
-- **Utgiverregel:** Når bygget er signert, har alle EXE-, DLL- og PYD-filer uten leverandørsignatur organisasjonens signatur, også FFmpeg, FFprobe og Python-modulene. Filer fra Qt og Python beholder leverandørens signatur. Én utgiverregel for organisasjonens sertifikat og leverandørene dekker dermed hele programmet. Hash-regler kan lages fra `SHA256SUMS.txt`.
-- **Sti:** MSI-en installerer til Program Files, som standardreglene i AppLocker tillater. Ingen programfiler kjøres fra TEMP eller brukermapper.
-- **Defender og ASR:** Programmet starter ingen skript, PowerShell, cmd eller Office-prosesser, og laster ikke kode fra nettet. Regelen *Block executable files from running unless they meet a prevalence, age, or trusted list criterion* vil stoppe et nytt, usignert bygg. Signering og IT sin godkjenning av sertifikatet håndterer dette.
-- **Skanning ved oppstart:** Programmet starter FFprobe én gang per fil ved import, og FFmpeg ved konvertering og forhåndsvisning. På en utviklingsmaskin med sanntidsbeskyttelse tok hver oppstart av en ukjent, usignert `ffmpeg.exe` rundt 1,8 sekunder, mot noen millisekunder uten skanning. Import av mange filer blir merkbart tregere før filene er kjent for Defender. Signering og godkjenning av sertifikatet eller filene reduserer dette. Unntak fra skanning er ikke nødvendig.
+Programfilene er nye og unike for hvert bygg, og de har derfor ingen utbredelse eller omdømme hos Microsoft. Det har betydning for disse reglene:
+
+| Mekanisme | Virkning på et usignert bygg | Tiltak |
+| --- | --- | --- |
+| **Defender ASR**, regelen *Block executable files from running unless they meet a prevalence, age, or trusted list criterion* (`01443614-CD74-433A-B99E-2ECDC07BFC25`) | Stopper `VestfoldMediaConverter.exe`, `ffmpeg.exe` og `ffprobe.exe` når regelen blokkerer. | Signer bygget, og legg sertifikatet inn som tillatt (Allow) indikator i Defender for Endpoint, eller legg filenes SHA-256 fra `SHA256SUMS.txt` inn som tillatte filer. Alternativt et ASR-unntak for `C:\Program Files\Vestfold Media Converter\`, der vanlige brukere ikke kan skrive. |
+| **WDAC / App Control** med krav om signert kode | Stopper usignerte EXE-, DLL- og PYD-filer når policyen håndheves. I revisjonsmodus logges de bare. | Legg til en signerregel for organisasjonens sertifikat, for eksempel i en tilleggspolicy. |
+| **AppLocker** | Standardreglene tillater programmer i Program Files. | MSI-en installerer dit. |
+
+- **Hva signeres:** Byggskriptet signerer alle EXE-, DLL- og PYD-filer som ikke allerede har en gyldig leverandørsignatur. Det gjelder også FFmpeg, FFprobe, Python-kjøretiden og pywin32. Filer som er signert av leverandøren (for eksempel Qt), beholder sin signatur. Én utgiverregel for organisasjonens sertifikat dekker da alle filene prosjektet leverer. Hash-regler kan lages fra `SHA256SUMS.txt`.
+- **Prosesser:** Programmet starter ingen skript, PowerShell, cmd eller Office-prosesser, og laster ikke kode fra nettet. De eneste underprosessene er FFmpeg og FFprobe fra programmappen.
+- **Skanning ved oppstart:** Programmet starter FFprobe én gang per fil ved import, og FFmpeg ved konvertering og forhåndsvisning. Sanntidsskanning av ukjente, usignerte programfiler kan gjøre hver oppstart merkbart tregere. Under utviklingen ble det målt rundt 1,8 sekunder per oppstart, mot noen millisekunder uten skanning. Signering og godkjenning reduserer dette. Unntak fra skanning er ikke nødvendig.
 - Programmet gjør ingen forsøk på å endre eller omgå sikkerhetsinnstillinger.
 
 ## Lisenser
@@ -110,5 +118,3 @@ Skal prøves i målmiljøet med standardbruker før utrulling:
 - Import i Adobe Premiere Pro, flere timers skoleopptak, defekte minnekort og fysisk full disk
 - GPU-koding på skolens maskiner og drivere
 - Omdirigert Dokumenter-mappe og offline bruk
-
-På utviklingsmaskinen ble oppstart av et tidligere usignert EXE-bygg én gang avvist med «Ingen tilgang». Årsaken er ikke fastslått. Et senere bygg startet normalt fra samme maskin. Ingen sikkerhetsinnstilling ble endret eller omgått.
