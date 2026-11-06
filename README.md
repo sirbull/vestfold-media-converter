@@ -11,10 +11,10 @@ Typiske eksempler er videoopptak fra kamera (MTS/M2TS), skjermopptak, intervjuer
 | | |
 |---|---|
 | **Versjon** | 1.0.0 |
-| **Plattform** | Windows x64. Portabel programmappe, ingen installasjon. |
+| **Plattform** | Windows x64. MSI for Program Files, eller portabel programmappe. |
 | **Rettigheter** | Kjører som vanlig bruker. Krever ikke administrator. |
 | **Nettverk** | Ingen. Ingen telemetri, oppdateringssjekk eller skytjenester. |
-| **Avhengigheter** | Ingen hos brukeren. Python, Qt, FFmpeg og fonten følger med i mappen. |
+| **Avhengigheter** | Ingen hos brukeren. Python, Qt, FFmpeg og fonten følger med programmet. |
 | **Språk** | Norsk (bokmål), med vanlige engelske fagord. |
 | **Lisens** | GPL-3.0-or-later |
 
@@ -121,13 +121,13 @@ Programmet kan lese alt den medfølgende FFmpeg-versjonen kan dekode. Filbrowser
 
 ## Sikkerhet og datahåndtering
 
-- **Ingen nettverk:** Programmet kobler seg aldri til internett. FFmpeg startes med bare `file`- og `pipe`-protokollene tillatt i forhåndsvisningen.
+- **Ingen nettverk:** Programmet kobler seg aldri til internett. Den medfølgende FFmpeg er bygget helt uten nettverksstøtte, og startes i tillegg med bare `file`- og `pipe`-protokollene tillatt.
 - **Ingen systemendringer:** Programmet skriver ikke til registeret, installerer ingen tjenester, endrer ingen Windows-innstillinger og ber ikke om administratorrettigheter.
-- **Kontrollerte prosesser:** FFmpeg og FFprobe startes direkte fra programmappen, uten shell og uten oppslag i PATH, og uten synlig konsollvindu.
+- **Kontrollerte prosesser:** FFmpeg og FFprobe er de eneste programmene som startes. De startes direkte fra programmappen, uten shell, uten oppslag i PATH og uten synlig konsollvindu. PowerShell og skript brukes ikke.
 - **Trygg lagring:** FFmpeg skriver først til en midlertidig fil. Resultatet kontrolleres med FFprobe (riktige strømmer, kodeker og varighet) før filen får sitt endelige navn. Finnes navnet fra før, brukes `navn (1).mp4`, `navn (2).mp4` osv. Ingenting overskrives.
 - **Lite lagret:** Bare tema, målmappe og visningsvalg i filbrowseren lagres, i `%LOCALAPPDATA%\VestfoldMediaConverter\settings.json`. Filstier, køer, søkeord og søkeresultater lagres ikke mellom kjøringer.
-- **Kun lesing fra Windows:** Hurtigtilgang og Windows Search-indeksen leses, men endres ikke.
-- **Sporbar FFmpeg:** FFmpeg er låst til én versjon og kontrolleres med SHA-256 når den hentes til bygget. Programmet laster aldri ned noe selv.
+- **Kun lesing fra Windows:** Hurtigtilgang og Windows Search-indeksen leses direkte gjennom Windows sine COM-grensesnitt, men endres ikke.
+- **Sporbar FFmpeg:** FFmpeg bygges av prosjektet selv fra kildekode som er låst med SHA-256 eller git-commit. Hele kildekoden følger med programmet. Programmet laster aldri ned noe selv.
 
 ## Teknisk oppbygging
 
@@ -135,13 +135,13 @@ Programmet kan lese alt den medfølgende FFmpeg-versjonen kan dekode. Filbrowser
 |---|---|
 | Språk | Python 3.12 |
 | Grensesnitt | Qt 6 Widgets via PySide6 Essentials (uten WebEngine og Qt Multimedia) |
-| Mediemotor | FFmpeg 9.0.2 og FFprobe (Gyan-bygg, GPLv3, med libx264 og libx265) |
+| Mediemotor | FFmpeg 9.0.2 og FFprobe, eget minimalt bygg (GPLv3) med x264, x265, libaom, libvpx, LAME, Opus og Vorbis, uten nettverksstøtte |
 | Lydavspilling | Windows sin innebygde lydutgang (winmm) via `ctypes` |
-| Windows-integrasjon | Shell (Hurtigtilgang, Known Folders) og Windows Search, kun lesing |
+| Windows-integrasjon | Shell (Hurtigtilgang, Known Folders) og Windows Search via COM (pywin32), kun lesing |
 | Font | Nunito (SIL Open Font License), gjengitt med FreeType |
-| Pakking | PyInstaller, portabel mappe med EXE og manifest (asInvoker, PerMonitorV2 DPI, lange stier) |
+| Pakking | PyInstaller, portabel mappe med EXE og manifest (asInvoker, PerMonitorV2 DPI, lange stier), og MSI med WiX 5 |
 | Avhengighetsstyring | uv med låst `uv.lock` |
-| Kvalitet | pytest, pytest-qt og Ruff. CI på GitHub Actions (Windows) |
+| Kvalitet | pytest, pytest-qt og Ruff. GitHub Actions bygger FFmpeg (Linux), kjører testene og lager programmappe og MSI (Windows) |
 
 ```mermaid
 flowchart LR
@@ -185,9 +185,11 @@ src/vestfold_converter/
     theme.py           Farger, stilark og typografi
     icons.py           Tegnede linjeikoner
     widgets.py         Egne widgeter og køvisning
-scripts/               Verifisert FFmpeg-henting, bygg og distribusjonsinventar
+scripts/               Bygg, MSI, FFmpeg-installasjon og distribusjonsinventar
+  ffmpeg/              Oppskrift for eget FFmpeg-bygg, låste kilder og kontroll av bygget
+installer/             MSI-definisjon (WiX)
 tests/                 Enhetstester, ekte FFmpeg-tester og Qt-flyter
-vendor/ffmpeg/         Fast versjon av FFmpeg/FFprobe og opprinnelsesdata
+vendor/ffmpeg/         Installert FFmpeg-bygg med lisenser og kildearkiv (ikke i git)
 ```
 
 ## Utvikling
@@ -198,11 +200,11 @@ Krever Windows x64 og [uv](https://docs.astral.sh/uv/). Det trengs nettverk før
 
 ```powershell
 uv sync --frozen --extra dev
-.\scripts\fetch_ffmpeg.ps1
+.\scripts\fetch_ffmpeg.ps1 -Package ffmpeg-vmc-9.0.2-win64.zip -Source ffmpeg-vmc-9.0.2-source.tar
 uv run python -m vestfold_converter
 ```
 
-`uv` henter Python 3.12 ved behov. `fetch_ffmpeg.ps1` henter den låste FFmpeg-versjonen og kontrollerer SHA-256. Et arkiv som allerede er lastet ned, kan brukes med `-Archive C:\sti\ffmpeg.zip`. Når miljøet er klart, kan programmet startes uten nettverk:
+`uv` henter Python 3.12 ved behov. FFmpeg-pakken og kildearkivet er artefakten **ffmpeg** fra arbeidsflyten *Bygg og test* i GitHub Actions. Bygget kan også lages på nytt på Ubuntu 24.04 med `scripts/ffmpeg/build.sh`. `fetch_ffmpeg.ps1` kontrollerer hver fil mot pakkens kontrollsummer før den tas i bruk. Når miljøet er klart, kan programmet startes uten nettverk:
 
 ```powershell
 uv run --frozen --offline python -m vestfold_converter
@@ -220,12 +222,14 @@ uv run ruff check src tests scripts
 
 Testene dekker analyse, profiler og kompatibilitet, ekte konverteringer med medfølgende FFmpeg, avbrudd og opprydding, forhåndsvisning, importbrowser, Windows-søk og Qt-flytene i hovedvinduet. Mediefilene lages lokalt i en midlertidig mappe fra pytest, og ingen nettverk brukes. Uten FFmpeg hoppes integrasjonstestene over ved vanlig utvikling. Byggskriptet og CI setter `VMC_REQUIRE_FFMPEG=1`, så manglende verktøy gir feil.
 
-`build.ps1` kjører testene og lager `dist/VestfoldMediaConverter/` med EXE, `_internal`-mappe, dokumentasjon, lisenser, applikasjonens kildearkiv, `BUILD-INFO.json` og `SHA256SUMS.txt`. **Hele mappen** må kopieres for at programmet skal virke. `-SkipTests` er kun ment for lokal utprøving etter at testene har bestått. `-SigningCertificateThumbprint` signerer programmet med et eksisterende sertifikat før kontrollsummene beregnes.
+`build.ps1` kontrollerer FFmpeg-bygget, kjører testene og lager `dist/VestfoldMediaConverter/` med EXE, `_internal`-mappe, dokumentasjon, lisenser, `source/` med all kildekode, `BUILD-INFO.json`, `SBOM.cdx.json` og `SHA256SUMS.txt`. **Hele mappen** må kopieres for at programmet skal virke. `-Msi` lager også `dist/VestfoldMediaConverter-<versjon>.msi` (krever WiX 5). `-SkipTests` er kun ment for lokal utprøving etter at testene har bestått.
+
+`-SigningCertificateThumbprint` signerer alle EXE-, DLL- og PYD-filer som ikke allerede er signert av leverandøren, og MSI-pakken, med et eksisterende sertifikat. Bruk `-TimestampServer` med organisasjonens tidsstempeltjeneste, ellers blir signaturen ugyldig når sertifikatet utløper. Kontrollsummer og SBOM beregnes etter signering. I GitHub Actions signeres bygget når hemmelighetene `SIGNING_PFX_BASE64` og `SIGNING_PFX_PASSWORD` finnes.
 
 ## Lisens
 
-Applikasjonens kildekode er **GPL-3.0-or-later**, se [LICENSE](LICENSE). Den medfølgende Gyan-bygningen av FFmpeg er **GPLv3** (`--enable-gpl`, `--enable-version3`, libx264 og libx265), ikke en LGPL-bygning. Qt/PySide6 har egne LGPL/GPL-lisenser og tredjepartsvilkår. Nunito er lisensiert under SIL Open Font License.
+Applikasjonens kildekode er **GPL-3.0-or-later**, se [LICENSE](LICENSE). Den medfølgende FFmpeg er prosjektets eget bygg og er **GPLv3** (`--enable-gpl`, `--enable-version3`, med x264 og x265), ikke en LGPL-bygning. Qt/PySide6 har egne LGPL/GPL-lisenser og tredjepartsvilkår. pywin32 er lisensiert under PSF-lisensen, og Nunito under SIL Open Font License.
 
 Programikonet (rødt skjold med gul avspillingsknapp) er en egen profilressurs. Original SVG ligger uendret i `src/vestfold_converter/assets/vmc-ikon.svg`. EXE-ikonet lages fra samme SVG under bygging. GPL-merkingen gjelder applikasjonens egen kildekode.
 
-Før den portable mappen deles videre, må den som distribuerer den sikre tilsvarende kildekode, bygghjelpemidler og notices for den **faktiske** FFmpeg-bygningen og bibliotekene i den, og oppfylle Qt-lisensvilkårene. Applikasjonens kildekode følger med. Kildekoden til de statiske tredjepartsbibliotekene i Gyan-bygningen følger ikke automatisk med. Se [distribusjonsnotatet](IT-GODKJENNING.md) og [lisensnotatet](docs/LICENSES.md).
+Tilsvarende kildekode følger med i `source/`: appens egen kildekode og hele kildegrunnlaget for FFmpeg, med alle bibliotekene som er lenket inn og byggoppskriften. Byggskriptet stopper hvis FFmpeg-kildekoden mangler. Se [IT-godkjenning](IT-GODKJENNING.md) og [lisensnotatet](docs/LICENSES.md).

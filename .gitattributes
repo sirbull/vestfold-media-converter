@@ -1,0 +1,3 @@
+# Skript som kjøres på Linux i GitHub Actions må ha LF-linjeslutt.
+*.sh text eol=lf
+scripts/ffmpeg/* text eol=lf

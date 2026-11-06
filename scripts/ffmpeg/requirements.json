@@ -1,0 +1,36 @@
+{
+  "encoders": ["mjpeg", "ac3", "pcm_s16le"],
+  "muxers": ["image2pipe", "s16le", "mpegts", "null"],
+  "filters": ["bwdif", "scale", "pad", "fps", "setparams", "format", "aformat", "aresample"],
+  "pixel_formats": {
+    "libx265": ["yuv420p", "yuv420p10le"],
+    "libvpx-vp9": ["yuv420p", "yuv420p10le"],
+    "libaom-av1": ["yuv420p", "yuv420p10le"],
+    "prores_ks": ["yuv422p10le"]
+  },
+  "protocols_allowed": [
+    "async", "cache", "concat", "concatf", "crypto", "data", "fd", "file", "md5", "pipe", "subfile", "tee"
+  ],
+  "configure_required": ["--enable-gpl", "--disable-network"],
+  "configure_forbidden": ["--enable-nonfree"],
+  "excluded": {
+    "decoders": {
+      "libgsm": "Innebygd FFmpeg-dekoder (gsm) leser samme format.",
+      "libgsm_ms": "Innebygd FFmpeg-dekoder (gsm_ms) leser samme format.",
+      "libopencore_amrnb": "Innebygd FFmpeg-dekoder (amrnb) leser samme format.",
+      "libopencore_amrwb": "Innebygd FFmpeg-dekoder (amrwb) leser samme format.",
+      "libspeex": "Innebygd FFmpeg-dekoder (speex) leser samme format."
+    },
+    "demuxers": {
+      "avisynth": "AviSynth-skript laster eksterne DLL-er fra maskinen. Utelatt av sikkerhetshensyn.",
+      "dash": "Strømmelister for nettstrømming. Krever nettverk og libxml2.",
+      "imf": "IMF-mastringspakker for kinoleveranse. Krever libxml2.",
+      "libgme": "Musikkfiler fra spillkonsoller.",
+      "libopenmpt": "Trackermusikk (MOD, XM, IT).",
+      "rtp": "Nettverksstrøm. Bygget har ikke nettverksstøtte.",
+      "rtsp": "Nettverksstrøm. Bygget har ikke nettverksstøtte.",
+      "sap": "Nettverksstrøm. Bygget har ikke nettverksstøtte.",
+      "sdp": "Beskrivelse av nettverksstrøm. Bygget har ikke nettverksstøtte."
+    }
+  }
+}

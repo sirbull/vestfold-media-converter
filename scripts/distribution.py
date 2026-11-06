@@ -1,19 +1,39 @@
-"""Lag lisenssamling, inventar og SHA-256 for den faktiske byggmappen."""
+"""Lag lisenssamling, kildearkiv, SBOM, inventar og SHA-256 for den faktiske byggmappen."""
 
 import argparse
 import hashlib
 import importlib.metadata
+import importlib.util
 import json
 import platform
 import shutil
 import subprocess
 import sys
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from vestfold_converter import __version__
 from vestfold_converter.core.process import CREATE_FLAGS
+
+PYTHON_PACKAGES = ("PySide6-Essentials", "shiboken6", "pywin32", "pyinstaller", "pyinstaller-hooks-contrib")
+PACKAGE_LICENSES = {
+    "PySide6-Essentials": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
+    "shiboken6": "LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only",
+    "pywin32": "PSF-2.0",
+    "pyinstaller": "GPL-2.0-or-later WITH Bootloader-exception",
+    "pyinstaller-hooks-contrib": "GPL-2.0-or-later OR Apache-2.0",
+}
+VENDOR = ROOT / "vendor" / "ffmpeg"
+
+
+def _load_ffmpeg_verifier():
+    spec = importlib.util.spec_from_file_location("ffmpeg_verify", ROOT / "scripts" / "ffmpeg" / "verify.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.verify
 
 
 def digest(path):
@@ -27,7 +47,7 @@ def prepare_licenses():
     shutil.copy2(ROOT / "LICENSE", folder / "APPLICATION-GPL-3.0.txt")
     shutil.copytree(ROOT / "licenses", folder / "standard-licenses", dirs_exist_ok=True)
     shutil.copy2(ROOT / "src/vestfold_converter/assets/fonts/OFL.txt", folder / "Nunito-OFL-1.1.txt")
-    for dependency in ("PySide6-Essentials", "shiboken6", "pyinstaller", "pyinstaller-hooks-contrib"):
+    for dependency in PYTHON_PACKAGES:
         dist = importlib.metadata.distribution(dependency)
         for file in dist.files or []:
             if any(part.lower() in {"licenses", "license_files"} for part in file.parts) or (
@@ -45,10 +65,8 @@ def prepare_licenses():
             break
     else:
         raise RuntimeError("Python-lisenstekst mangler i valgt Python-distribusjon.")
-    vendor = ROOT / "vendor" / "ffmpeg" / "licenses"
-    for path in vendor.glob("*"):
-        if path.is_file():
-            shutil.copy2(path, folder / path.name)
+    # FFmpeg og hvert bibliotek som er lenket inn i den, med egne undermapper.
+    shutil.copytree(VENDOR / "licenses", folder / "ffmpeg", dirs_exist_ok=True)
     return folder
 
 
@@ -97,8 +115,124 @@ def prepare_icon(sizes=(16, 20, 24, 32, 40, 48, 64, 128, 256)):
     return target
 
 
+def _sbom(folder: Path, packages: dict, ffmpeg_build: dict) -> dict:
+    """CycloneDX 1.5-oversikt over alle komponenter som følger med, for IT sin analyse."""
+
+    def license_of(expression):
+        return [{"expression": expression}] if " " in expression else [{"license": {"id": expression}}]
+
+    def shipped(relative):
+        return [{"alg": "SHA-256", "content": digest(folder / relative)}]
+
+    def library(name, info):
+        component = {
+            "type": "library",
+            "name": name,
+            "version": info["version"],
+            "licenses": license_of(info["license"]),
+            "externalReferences": [
+                {"type": "website", "url": info["homepage"]},
+                {"type": "distribution", "url": info.get("url") or info["git"]},
+            ],
+        }
+        if info.get("sha256"):
+            component["hashes"] = [{"alg": "SHA-256", "content": info["sha256"]}]
+        if info.get("commit"):
+            component["properties"] = [{"name": "vmc:git-commit", "value": info["commit"]}]
+        return component
+
+    components = [
+        {
+            "type": "framework",
+            "name": "CPython",
+            "version": platform.python_version(),
+            "licenses": license_of("PSF-2.0"),
+            "purl": f"pkg:generic/cpython@{platform.python_version()}",
+        },
+        *(
+            {
+                "type": "library",
+                "name": name,
+                "version": version,
+                "licenses": license_of(PACKAGE_LICENSES[name]),
+                "purl": f"pkg:pypi/{name.lower()}@{version}",
+            }
+            for name, version in packages.items()
+        ),
+        {
+            "type": "application",
+            "name": "FFmpeg",
+            "version": ffmpeg_build["ffmpeg_version"],
+            "description": "Eget, minimalt bygg uten nettverksstøtte. Kildekoden ligger i source/.",
+            "licenses": license_of("GPL-3.0-or-later"),
+            "hashes": shipped("_internal/vendor/ffmpeg/bin/ffmpeg.exe"),
+            "properties": [{"name": "vmc:configure", "value": " ".join(ffmpeg_build["configure_flags"])}],
+            "components": [
+                library(name, info) for name, info in ffmpeg_build["components"].items() if name != "ffmpeg"
+            ],
+        },
+        {
+            "type": "file",
+            "name": "Nunito",
+            "licenses": license_of("OFL-1.1"),
+            "hashes": shipped("_internal/vestfold_converter/assets/fonts/Nunito-wght.ttf"),
+        },
+    ]
+    return {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.5",
+        "serialNumber": f"urn:uuid:{uuid.uuid4()}",
+        "version": 1,
+        "metadata": {
+            "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "component": {
+                "type": "application",
+                "name": "Vestfold Media Converter",
+                "version": __version__,
+                "licenses": license_of("GPL-3.0-or-later"),
+                "hashes": shipped("VestfoldMediaConverter.exe"),
+            },
+        },
+        "components": components,
+    }
+
+
+def _application_source(target: Path) -> None:
+    """Appens egen kildekode, samlet i en tom mappe så slettede filer ikke blir med."""
+    source = ROOT / "build" / "source" / "vestfold-media-converter"
+    shutil.rmtree(source, ignore_errors=True)
+    source.mkdir(parents=True)
+    for name in ("src", "scripts", "tests", "docs", "licenses", "installer", ".github"):
+        shutil.copytree(ROOT / name, source / name, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    for name in (
+        "pyproject.toml",
+        "uv.lock",
+        "VestfoldMediaConverter.spec",
+        "README.md",
+        "LICENSE",
+        "IT-GODKJENNING.md",
+        ".python-version",
+        ".gitattributes",
+    ):
+        shutil.copy2(ROOT / name, source / name)
+    shutil.make_archive(str(target / "APPLICATION-SOURCE"), "zip", source.parent)
+
+
 def audit(folder: Path):
     ffmpeg = folder / "_internal" / "vendor" / "ffmpeg" / "bin" / "ffmpeg.exe"
+    problems = _load_ffmpeg_verifier()(ffmpeg)
+    if problems:
+        raise RuntimeError("FFmpeg-bygget oppfyller ikke kravene:\n" + "\n".join(problems))
+    origin = json.loads((VENDOR / "origin.json").read_text(encoding="utf-8"))
+    ffmpeg_source = VENDOR / "source" / origin.get("source", "")
+    if origin.get("provider") != "vmc" or not origin.get("source") or not ffmpeg_source.is_file():
+        raise RuntimeError(
+            "Kildekoden til FFmpeg mangler, og bygget kan ikke distribueres uten den. "
+            "Kjør scripts/fetch_ffmpeg.ps1 med -Package og -Source."
+        )
+    if digest(ffmpeg_source) != origin["source_sha256"]:
+        raise RuntimeError("FFmpeg-kildearkivet har endret seg etter at det ble installert.")
+    ffmpeg_build = json.loads((VENDOR / "BUILD-INFO.json").read_text(encoding="utf-8"))
 
     def run(*args):
         return subprocess.run(
@@ -110,57 +244,39 @@ def audit(folder: Path):
             creationflags=CREATE_FLAGS,
         ).stdout
 
-    version = run("-version")
-    license_text = run("-L")
-    if "--enable-nonfree" in version:
-        raise RuntimeError("Denne FFmpeg-bygningen kan ikke redistribueres: --enable-nonfree.")
-    if "--enable-gpl" not in version:
-        raise RuntimeError("Forventet GPL-bygning for libx264/libx265. Kontroller lisensgrunnlaget.")
-    packages = {
-        name: importlib.metadata.version(name)
-        for name in ("PySide6-Essentials", "shiboken6", "pyinstaller", "pyinstaller-hooks-contrib")
-    }
+    packages = {name: importlib.metadata.version(name) for name in PYTHON_PACKAGES}
+    target = folder / "source"
+    target.mkdir(exist_ok=True)
+    shutil.copy2(ffmpeg_source, target / ffmpeg_source.name)
+    _application_source(target)
     manifest = {
         "application": "Vestfold Media Converter",
         "version": __version__,
         "python": platform.python_version(),
         "platform": platform.platform(),
         "dependencies": packages,
-        "ffmpeg_version": version,
-        "ffmpeg_license": license_text,
-        "origin": json.loads((ROOT / "vendor/ffmpeg/origin.json").read_text()),
+        "ffmpeg_version": run("-version"),
+        "ffmpeg_license": run("-L"),
+        "ffmpeg_build": ffmpeg_build,
+        "origin": origin,
         "executables": [p.relative_to(folder).as_posix() for p in sorted(folder.rglob("*.exe"))],
-        "distribution_status": "Tilsvarende kildekode for FFmpeg-bygningens statiske biblioteker må avklares før videredistribusjon.",
+        "distribution_status": (
+            "Klar for IT-vurdering. Tilsvarende kildekode for appen, FFmpeg og alle bibliotek "
+            "som er lenket inn i FFmpeg, ligger i source/."
+        ),
     }
     (folder / "BUILD-INFO.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    source = ROOT / "build" / "source" / "vestfold-media-converter"
-    source.mkdir(parents=True, exist_ok=True)
-    for name in ("src", "scripts", "tests", "docs", "licenses"):
-        shutil.copytree(
-            ROOT / name,
-            source / name,
-            dirs_exist_ok=True,
-            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
-        )
-    for name in (
-        "pyproject.toml",
-        "uv.lock",
-        "VestfoldMediaConverter.spec",
-        "README.md",
-        "LICENSE",
-        "IT-GODKJENNING.md",
-        ".python-version",
-    ):
-        shutil.copy2(ROOT / name, source / name)
-    shutil.make_archive(str(folder / "APPLICATION-SOURCE"), "zip", source.parent)
+    (folder / "SBOM.cdx.json").write_text(
+        json.dumps(_sbom(folder, packages, ffmpeg_build), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     rows = []
     for path in sorted(folder.rglob("*")):
         if path.is_file() and path.name != "SHA256SUMS.txt":
             rows.append(f"{digest(path)}  {path.relative_to(folder).as_posix()}")
     (folder / "SHA256SUMS.txt").write_text("\n".join(rows) + "\n", encoding="utf-8")
-    print(f"Inventar og kontrollsummer skrevet: {folder}")
+    print(f"Inventar, SBOM og kontrollsummer skrevet: {folder}")
 
 
 if __name__ == "__main__":
