@@ -33,7 +33,7 @@ Med `--enable-gpl --enable-version3` og x264/x265 er det ferdige FFmpeg-bygget *
 
 Lisenstekstene ligger i lisenssamlingen under `_internal/licenses/ffmpeg/`, én mappe per komponent. Verktøykjeden (GCC, binutils, mingw-w64) regnes som allment tilgjengelige verktøy etter GPL, og versjonene står i `BUILD-INFO.json`.
 
-Sammenlignet med det tidligere Gyan-bygget er ingen funksjon i appen fjernet. Bibliotekene som er utelatt (blant annet nettverk, AviSynth, undertekstgjengivelse og ekstra filtre), brukes ikke av appen. Dekoderne fra eksterne bibliotek som er utelatt, har en innebygd FFmpeg-dekoder for samme format. `scripts/ffmpeg/requirements.json` lister hver utelatelse med begrunnelse, og `verify.py` sjekker bygget mot det forrige på hvert bygg.
+Sammenlignet med det tidligere Gyan-bygget kan appen eksportere og forhåndsvise de samme formatene som før. Fem sjeldne innleseformater er bevisst utelatt: AviSynth-skript (laster eksterne DLL-er), DASH-strømmelister, IMF-mastringspakker, spillmusikk og trackermusikk. Øvrige biblioteker som er utelatt (blant annet nettverk, undertekstgjengivelse og ekstra filtre), brukes ikke av appen. Dekoderne fra eksterne bibliotek som er utelatt, har en innebygd FFmpeg-dekoder for samme format. `scripts/ffmpeg/requirements.json` lister hver utelatelse med begrunnelse, og `verify.py` sjekker bygget mot det forrige på hvert bygg.
 
 ## Qt, Python og byggverktøy
 
